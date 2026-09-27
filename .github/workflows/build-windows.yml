@@ -1,0 +1,29 @@
+# 云端构建 Windows 接收端：产出单文件 exe（无驱动，无需管理员权限）
+# 使用：仓库页 Actions → build-windows → Run workflow，完成后在 Artifacts 下载
+name: build-windows
+
+on:
+  workflow_dispatch:
+  push:
+    paths: ["receivers/windows/**", ".github/workflows/build-windows.yml"]
+
+jobs:
+  exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: 发布单文件 exe
+        run: >
+          dotnet publish receivers/windows -c Release -r win-x64 --self-contained
+          -p:PublishSingleFile=true -p:PublishTrimmed=true
+          -o output
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cMouse-receiver-windows
+          path: output/cMouse.exe

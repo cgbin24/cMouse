@@ -1,0 +1,248 @@
+package com.cmouse.app
+
+import android.Manifest
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import android.os.IBinder
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Keyboard
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.TouchApp
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.cmouse.app.data.SettingsStore
+import com.cmouse.app.hid.HidDeviceManager
+import com.cmouse.app.hid.HidService
+import com.cmouse.app.input.InputDispatcher
+import com.cmouse.app.transport.LanClient
+import com.cmouse.app.ui.CMouseTheme
+import com.cmouse.app.ui.KeyboardScreen
+import com.cmouse.app.ui.SettingsScreen
+import com.cmouse.app.ui.TrackpadScreen
+
+class MainActivity : ComponentActivity() {
+
+    private lateinit var settings: SettingsStore
+    private lateinit var dispatcher: InputDispatcher
+
+    private var lanClient: LanClient? = null
+    private var hidService: HidService? = null
+    private var hidBound = false
+
+    // UI 状态
+    private var hidRegistered by mutableStateOf(false)
+    private var hostName by mutableStateOf<String?>(null)
+    private var lanState by mutableStateOf(LanClient.State.CLOSED)
+    private var lanMsg by mutableStateOf("")
+    private var statusVersion by mutableStateOf(0) // 触发设置页设备列表刷新
+
+    private val statusRelay = object : HidDeviceManager.Listener {
+        override fun onRegistered(registered: Boolean) {
+            hidRegistered = registered
+            statusVersion++
+        }
+
+        override fun onHostChanged(name: String?, connected: Boolean) {
+            hostName = if (connected) name else null
+            statusVersion++
+        }
+
+        override fun onError(message: String) {
+            lanMsg = message
+        }
+    }
+
+    private val conn = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            hidService = (service as HidService.LocalBinder).service
+            hidService?.statusListener = statusRelay
+            hidRegistered = hidService?.hid?.isRegistered ?: false
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            hidService = null
+        }
+    }
+
+    private val permissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        settings = SettingsStore(this)
+        dispatcher = InputDispatcher(settings)
+        dispatcher.hidProvider = { hidService?.hid }
+        dispatcher.lanProvider = { lanClient }
+        requestNeededPermissions()
+        setContent {
+            CMouseTheme {
+                MainScaffold()
+            }
+        }
+    }
+
+    private fun requestNeededPermissions() {
+        val wanted = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
+        ) wanted += Manifest.permission.BLUETOOTH_CONNECT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) wanted += Manifest.permission.POST_NOTIFICATIONS
+        if (wanted.isNotEmpty()) permissionLauncher.launch(wanted.toTypedArray())
+    }
+
+    /** 启动 HID 前台服务并绑定（注册手机为蓝牙键鼠设备）。 */
+    fun startHid() {
+        requestNeededPermissions()
+        val intent = Intent(this, HidService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
+        else startService(intent)
+        if (!hidBound) {
+            bindService(intent, conn, Context.BIND_AUTO_CREATE)
+            hidBound = true
+        }
+        // 注册后手机需处于可被发现状态，电脑才能完成配对
+        val adapter = getSystemService(BluetoothManager::class.java)?.adapter
+        if (adapter?.isEnabled == true &&
+            adapter.scanMode != BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE
+        ) {
+            val d = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
+            d.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300)
+            try {
+                startActivity(d)
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    fun stopHid() {
+        if (hidBound) {
+            unbindService(conn)
+            hidBound = false
+        }
+        stopService(Intent(this, HidService::class.java))
+        hidService = null
+        hidRegistered = false
+    }
+
+    fun connectLan(host: String, port: Int, code: String) {
+        disconnectLan()
+        val name = Build.MODEL ?: "cMouse"
+        val client = LanClient(host, port, name, object : LanClient.Listener {
+            override fun onState(state: LanClient.State, message: String) {
+                lanState = state
+                if (message.isNotEmpty()) lanMsg = message
+                if (state == LanClient.State.READY) {
+                    settings.rememberDevice("$host:$port", host, "lan")
+                    statusVersion++
+                }
+            }
+        })
+        lanClient = client
+        client.start(code)
+    }
+
+    fun disconnectLan() {
+        lanClient?.stop()
+        lanClient = null
+        lanState = LanClient.State.CLOSED
+    }
+
+    val lanConnected: Boolean get() = lanClient?.isReady == true
+
+    override fun onDestroy() {
+        if (hidBound) {
+            unbindService(conn)
+            hidBound = false
+        }
+        lanClient?.stop()
+        super.onDestroy()
+    }
+
+    private enum class Tab(val label: String, val icon: ImageVector) {
+        TRACKPAD("触控板", Icons.Outlined.TouchApp),
+        KEYBOARD("键盘", Icons.Outlined.Keyboard),
+        SETTINGS("设置", Icons.Outlined.Settings)
+    }
+
+    @androidx.compose.runtime.Composable
+    private fun MainScaffold() {
+        var tab by mutableStateOf(Tab.TRACKPAD)
+        Scaffold(
+            bottomBar = {
+                NavigationBar {
+                    Tab.entries.forEach { t ->
+                        NavigationBarItem(
+                            selected = tab == t,
+                            onClick = { tab = t },
+                            icon = { Icon(t.icon, contentDescription = t.label) },
+                            label = { Text(t.label) }
+                        )
+                    }
+                }
+            }
+        ) { padding ->
+            Box(Modifier.fillMaxSize().padding(padding)) {
+                val status = ConnectionStatus(
+                    hidRegistered = hidRegistered,
+                    hostName = hostName,
+                    lanState = lanState,
+                    lanMsg = lanMsg,
+                    version = statusVersion
+                )
+                when (tab) {
+                    Tab.TRACKPAD -> TrackpadScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        settings = settings,
+                        dispatcher = dispatcher,
+                        activity = this@MainActivity,
+                        status = status,
+                        onOpenKeyboard = { tab = Tab.KEYBOARD }
+                    )
+                    Tab.KEYBOARD -> KeyboardScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        dispatcher = dispatcher,
+                        lanMode = settings.getString(SettingsStore.Keys.MODE, "hid") == "lan"
+                    )
+                    Tab.SETTINGS -> SettingsScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        settings = settings,
+                        activity = this@MainActivity,
+                        status = status
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 传给各界面的连接状态快照。 */
+data class ConnectionStatus(
+    val hidRegistered: Boolean,
+    val hostName: String?,
+    val lanState: LanClient.State,
+    val lanMsg: String,
+    val version: Int
+)
