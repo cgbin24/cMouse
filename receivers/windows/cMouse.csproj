@@ -8,9 +8,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationIcon Condition="Exists('app.ico')">app.ico</ApplicationIcon>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <!-- 发布：
-         dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:PublishTrimmed=true
-         产出约 10 MB 单文件；如目标机已装 .NET 8 桌面运行时可 --self-contained false（约 1 MB）。 -->
+    <!-- 发布命令见 README.md：单文件自包含发布约 65 MB；装有 .NET 8 桌面运行时的机器可改为框架依赖发布，约 2 MB -->
   </PropertyGroup>
 
   <ItemGroup>

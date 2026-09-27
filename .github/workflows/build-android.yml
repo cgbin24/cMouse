@@ -18,12 +18,12 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - uses: android-actions/setup-android@v3
-
+      # runner 预装了 Android SDK（ANDROID_HOME 已指向 /usr/local/lib/android/sdk），
+      # 不使用 android-actions/setup-android@v3：该 Action 会尝试安装已下架的 tools 包导致失败
       - name: 安装 SDK 组件
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" > /dev/null
 
       - name: 构建 Debug APK（自带调试签名，可直接安装）
         run: |

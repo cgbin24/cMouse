@@ -17,10 +17,11 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      # 不加 PublishTrimmed：裁剪与 SQLite 原生库组合存在运行时风险，先保证可靠出包
       - name: 发布单文件 exe
         run: >
           dotnet publish receivers/windows -c Release -r win-x64 --self-contained
-          -p:PublishSingleFile=true -p:PublishTrimmed=true
+          -p:PublishSingleFile=true
           -o output
 
       - uses: actions/upload-artifact@v4

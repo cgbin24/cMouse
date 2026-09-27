@@ -99,7 +99,8 @@ pkgbuild --root payload --identifier com.cmouse.receiver --version 1.0.0 --insta
 
 # Windows（需 .NET 8 SDK 或用 GitHub Actions）
 cd receivers/windows
-dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:PublishTrimmed=true
+dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
+# 产物约 65 MB；若追求体积可再加 -p:PublishTrimmed=true（与 SQLite 组合需自行验证运行时）
 ```
 
 ### iOS 验证状态

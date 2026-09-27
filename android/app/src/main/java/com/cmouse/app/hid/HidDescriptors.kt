@@ -7,10 +7,11 @@ package com.cmouse.app.hid
  *  - Report ID 1：鼠标（5 键 + 16 位相对 XY + 垂直滚轮 + AC Pan 水平滚动）
  *  - Report ID 2：键盘（标准 6 键无冲 + 8 个修饰键）
  * 16 位 XY 保证快速滑动单报告即可表达较大位移，避免 8 位描述符丢帧。
+ * 描述符以 Int 数组书写再转 Byte，规避 Kotlin 字节常量 0x80-0xFF 的书写坑。
  */
 object HidDescriptors {
 
-    val COMBINED: ByteArray = byteArrayOf(
+    private val DESCRIPTOR_WORDS = intArrayOf(
         // ---- 鼠标 ----
         0x05, 0x01, // Usage Page (Generic Desktop)
         0x09, 0x02, // Usage (Mouse)
@@ -27,15 +28,15 @@ object HidDescriptors {
         0x05, 0x01, //     Usage Page (Generic Desktop)
         0x09, 0x30, 0x09, 0x31, //     X, Y
         0x16, 0x01, 0x80, //     Logical Minimum (-32767)
-        0x26, 0xFF.toByte(), 0x7F, //     Logical Maximum (32767)
+        0x26, 0xFF, 0x7F, //     Logical Maximum (32767)
         0x75, 0x10, 0x95, 0x02, //     Size 16, Count 2
         0x81, 0x06, //     Input (Data, Var, Rel)
         0x09, 0x38, //     Usage (Wheel)
-        0x15, 0x81.toByte(), 0x25, 0x7F, //     Logical -127..127
+        0x15, 0x81, 0x25, 0x7F, //     Logical -127..127
         0x75, 0x08, 0x95, 0x01, 0x81, 0x06,
         0x05, 0x0C, //     Usage Page (Consumer)
         0x0A, 0x38, 0x02, //     Usage (AC Pan, 水平滚动)
-        0x15, 0x81.toByte(), 0x25, 0x7F, 0x75, 0x08, 0x95, 0x01, 0x81, 0x06,
+        0x15, 0x81, 0x25, 0x7F, 0x75, 0x08, 0x95, 0x01, 0x81, 0x06,
         0xC0, 0xC0,
         // ---- 键盘 ----
         0x05, 0x01, // Usage Page (Generic Desktop)
@@ -43,7 +44,7 @@ object HidDescriptors {
         0xA1, 0x01, // Collection (Application)
         0x85, 0x02, //   Report ID (2)
         0x05, 0x07, //   Usage Page (Keyboard)
-        0x19, 0xE0.toByte(), 0x29, 0xE7.toByte(), //   LeftCtrl..RightGui
+        0x19, 0xE0, 0x29, 0xE7, //   LeftCtrl..RightGui
         0x15, 0x00, 0x25, 0x01, 0x75, 0x01, 0x95, 0x08, 0x81, 0x02,
         0x95, 0x01, 0x75, 0x08, 0x81, 0x01, //   reserved byte
         0x95, 0x05, 0x75, 0x01, 0x05, 0x08, 0x19, 0x01, 0x29, 0x05, 0x91, 0x02, // LED output
@@ -52,6 +53,8 @@ object HidDescriptors {
         0x05, 0x07, 0x19, 0x00, 0x29, 0x65, 0x81, 0x00,
         0xC0
     )
+
+    val COMBINED: ByteArray = IntArray(DESCRIPTOR_WORDS.size) { i -> DESCRIPTOR_WORDS[i].toByte() }
 
     const val REPORT_ID_MOUSE = 1
     const val REPORT_ID_KEYBOARD = 2
@@ -85,7 +88,7 @@ object HidDescriptors {
     fun keyboardReport(modifiers: Int, keys: IntArray): ByteArray {
         val r = ByteArray(8)
         r[0] = (modifiers and 0xFF).toByte()
-        for (i in 0 until 6) r[2 + i] = keys.getOrNull(i)?.toByte() ?: 0
+        for (i in 0 until 6) r[2 + i] = (keys.getOrNull(i) ?: 0).toByte()
         return r
     }
 }

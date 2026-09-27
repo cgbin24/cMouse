@@ -57,8 +57,12 @@ internal sealed class DB
 
     private void Exec(string sql)
     {
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.ExecuteNonQuery();
+        // Microsoft.Data.Sqlite 单条 Command 只执行第一条语句，必须拆分
+        foreach (var stmt in sql.Split(';', StringSplitOptions.RemoveEmptyEntries))
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = stmt;
+            cmd.ExecuteNonQuery();
+        }
     }
 }

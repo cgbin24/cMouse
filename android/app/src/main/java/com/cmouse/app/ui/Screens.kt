@@ -243,7 +243,7 @@ fun KeyboardScreen(
 }
 
 @Composable
-private fun KeyRow(keys: List<String>, onPress: (String) -> Unit, weight: Float = 1f) {
+private fun KeyRow(keys: List<String>, weight: Float = 1f, onPress: (String) -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         keys.forEach { k ->
             KeyCap(k, weight = weight) { onPress(k) }
