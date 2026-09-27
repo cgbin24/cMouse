@@ -54,7 +54,7 @@ object HidDescriptors {
         0xC0
     )
 
-    val COMBINED: ByteArray = IntArray(DESCRIPTOR_WORDS.size) { i -> DESCRIPTOR_WORDS[i].toByte() }
+    val COMBINED: ByteArray = ByteArray(DESCRIPTOR_WORDS.size) { i -> DESCRIPTOR_WORDS[i].toByte() }
 
     const val REPORT_ID_MOUSE = 1
     const val REPORT_ID_KEYBOARD = 2
