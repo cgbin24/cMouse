@@ -77,7 +77,7 @@ internal sealed class Server
         while (_running && client.Connected)
         {
             int n;
-            try { n = await stream.ReadAsync(buf, buf.Length); }
+            try { n = await stream.ReadAsync(buf, 0, buf.Length); }
             catch { break; }
             if (n == 0) break;
             sb.Append(Encoding.UTF8.GetString(buf, 0, n));

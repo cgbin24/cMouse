@@ -23,6 +23,21 @@ class TrackpadView(
     private val density = resources.displayMetrics.density
     private val dp: (Float) -> Float = { it * density }
 
+    // 注意：sink 必须先于 engine 声明（engine 的初始化器引用它）
+    private val sink = object : GestureEngine.Sink {
+        override fun move(dx: Float, dy: Float) = dispatcher.move(dx, dy)
+        override fun click(button: Int, double: Boolean) = dispatcher.click(button, double)
+        override fun buttonDown(button: Int) = dispatcher.button(button, true)
+        override fun buttonUp(button: Int) = dispatcher.button(button, false)
+        override fun scroll(dx: Float, dy: Float) = dispatcher.scroll(dx, dy)
+        override fun momentumTick(dy: Float) = dispatcher.scroll(0f, dy)
+        override fun zoom(zoomPct: Float) = dispatcher.zoom(zoomPct)
+        override fun swipe(fingers: Int, dir: SwipeDir) = dispatcher.swipe(fingers, dir)
+        override fun haptic() {
+            performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        }
+    }
+
     private val engine = GestureEngine(
         GestureEngine.Config(
             slop = dp(12f),
@@ -42,6 +57,11 @@ class TrackpadView(
         override fun onLongPress(e: MotionEvent) {}
     })
 
+    init {
+        // 保持屏幕常亮：触控板使用中不应锁屏
+        keepScreenOn = true
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         detector.onTouchEvent(event)
         return engine.onTouchEvent(event)
@@ -49,23 +69,4 @@ class TrackpadView(
 
     override fun performHapticFeedback(feedbackConstant: Int): Boolean =
         super.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-
-    private val sink = object : GestureEngine.Sink {
-        override fun move(dx: Float, dy: Float) = dispatcher.move(dx, dy)
-        override fun click(button: Int, double: Boolean) = dispatcher.click(button, double)
-        override fun buttonDown(button: Int) = dispatcher.button(button, true)
-        override fun buttonUp(button: Int) = dispatcher.button(button, false)
-        override fun scroll(dx: Float, dy: Float) = dispatcher.scroll(dx, dy)
-        override fun momentumTick(dy: Float) = dispatcher.scroll(0f, dy)
-        override fun zoom(zoomPct: Float) = dispatcher.zoom(zoomPct)
-        override fun swipe(fingers: Int, dir: SwipeDir) = dispatcher.swipe(fingers, dir)
-        override fun haptic() {
-            performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-        }
-    }
-
-    init {
-        // 保持屏幕常亮：触控板使用中不应锁屏
-        keepScreenOn = true
-    }
 }

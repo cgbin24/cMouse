@@ -108,8 +108,8 @@ fun SettingsScreen(
                     Box(
                         Modifier.padding(end = 10.dp).clip(CircleShape).background(
                             if (connected) Accent else MaterialTheme.colorScheme.onSurfaceVariant
-                        ).then(Modifier).width(10.dp).height(10.dp)
-                    )
+                        ).width(10.dp).height(10.dp)
+                    ) { }
                     Text(
                         when {
                             connected -> "已配对：${status.hostName}"

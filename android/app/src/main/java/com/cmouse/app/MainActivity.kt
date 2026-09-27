@@ -125,7 +125,7 @@ class MainActivity : ComponentActivity() {
         }
         // 注册后手机需处于可被发现状态，电脑才能完成配对
         val adapter = getSystemService(BluetoothManager::class.java)?.adapter
-        if (adapter?.isEnabled == true &&
+        if (adapter != null && adapter.isEnabled &&
             adapter.scanMode != BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE
         ) {
             val d = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)

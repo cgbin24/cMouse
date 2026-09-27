@@ -21,7 +21,6 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardReturn
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -36,6 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -73,7 +74,7 @@ fun TrackpadScreen(
                     Modifier.size(10.dp).clip(CircleShape).background(
                         if (connected) Accent else MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                )
+                ) { }
                 Spacer(Modifier.width(10.dp))
                 Text(
                     text = when {
@@ -88,9 +89,7 @@ fun TrackpadScreen(
                 )
                 Spacer(Modifier.weight(1f))
                 if (lanMode) {
-                    TextButton(onClick = {
-                        if (activity.lanConnected) activity.disconnectLan()
-                    }) { Text("断开") }
+                    TextButton(onClick = { activity.disconnectLan() }) { Text("断开") }
                 } else {
                     TextButton(onClick = { activity.startHid() }) { Text("开始连接") }
                 }
@@ -111,17 +110,13 @@ fun TrackpadScreen(
                     modifier = Modifier.fillMaxSize(),
                     factory = { ctx -> TrackpadView(ctx, settings, dispatcher) }
                 )
-                Column(
-                    Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        "单指移动 · 轻点单击\n双指滑动滚动 · 双指轻点右键\n双指捏合缩放 · 三指滑动多任务",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                }
+                Text(
+                    "单指移动 · 轻点单击\n双指滑动滚动 · 双指轻点右键\n双指捏合缩放 · 三指滑动多任务",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.align(Alignment.Center)
+                )
             }
         }
 
@@ -147,7 +142,6 @@ fun TrackpadScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KeyboardScreen(
     modifier: Modifier = Modifier,
@@ -157,10 +151,14 @@ fun KeyboardScreen(
     var sticky by remember { mutableStateOf(setOf<String>()) }
     var textBuf by remember { mutableStateOf("") }
 
+    fun toggle(m: String) {
+        sticky = if (sticky.contains(m)) sticky - m else sticky + m
+    }
+
     fun pressChar(c: Char) {
-        if (sticky.isEmpty()) dispatcher.keyChar(c)
-        else dispatcher.keyChar(c, sticky)
-        if (sticky.contains("shift")) sticky = sticky - "shift" else if (sticky.isNotEmpty()) sticky = emptySet()
+        if (sticky.isEmpty()) dispatcher.keyChar(c) else dispatcher.keyChar(c, sticky)
+        if (sticky.contains("shift")) sticky = sticky - "shift"
+        else if (sticky.isNotEmpty()) sticky = emptySet()
     }
 
     fun pressCombo(combo: String) {
@@ -192,70 +190,60 @@ fun KeyboardScreen(
             }
         }
 
-        KeyRow(
-            keys = listOf("esc", "tab", "home", "end", "pgup", "pgdn", "del")
-        ) { pressCombo(it) }
-
-        KeyRow(keys = ('1'..'9').map { it.toString() } + listOf("0", "-", "=")) {
-            pressChar(it.first())
-        }
+        KeyRow(keys = listOf("esc", "tab", "home", "end", "pgup", "pgdn", "del")) { pressCombo(it) }
+        KeyRow(keys = ('1'..'9').map { it.toString() } + listOf("0", "-", "=")) { pressChar(it.first()) }
         KeyRow(keys = "qwertyuiop".map { it.toString() }) { pressChar(it.first()) }
         KeyRow(keys = "asdfghjkl".map { it.toString() }) { pressChar(it.first()) }
+
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            KeyCap("⇧", sticky.contains("shift")) {
-                sticky = if (sticky.contains("shift")) sticky - "shift" else sticky + "shift"
-            }
-            KeyCap("z") { pressChar('z') }
-            KeyCap("x") { pressChar('x') }
-            KeyCap("c") { pressChar('c') }
-            KeyCap("v") { pressChar('v') }
-            KeyCap("b") { pressChar('b') }
-            KeyCap("n") { pressChar('n') }
-            KeyCap("m") { pressChar('m') }
-            KeyCap(",", weight = 0.7f) { pressChar(',') }
-            KeyCap(".", weight = 0.7f) { pressChar('.') }
-            IconKeyCap(Icons.AutoMirrored.Outlined.Backspace) { pressCombo("backspace") }
+            KeyCap("⇧", active = sticky.contains("shift"), modifier = Modifier.weight(1f)) { toggle("shift") }
+            KeyCap("z", modifier = Modifier.weight(1f)) { pressChar('z') }
+            KeyCap("x", modifier = Modifier.weight(1f)) { pressChar('x') }
+            KeyCap("c", modifier = Modifier.weight(1f)) { pressChar('c') }
+            KeyCap("v", modifier = Modifier.weight(1f)) { pressChar('v') }
+            KeyCap("b", modifier = Modifier.weight(1f)) { pressChar('b') }
+            KeyCap("n", modifier = Modifier.weight(1f)) { pressChar('n') }
+            KeyCap("m", modifier = Modifier.weight(1f)) { pressChar('m') }
+            KeyCap(",", modifier = Modifier.weight(0.7f)) { pressChar(',') }
+            KeyCap(".", modifier = Modifier.weight(0.7f)) { pressChar('.') }
+            IconKeyCap(Icons.AutoMirrored.Outlined.Backspace, modifier = Modifier.weight(1.4f)) { pressCombo("backspace") }
         }
+
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            KeyCap("Ctrl", sticky.contains("ctrl")) {
-                sticky = if (sticky.contains("ctrl")) sticky - "ctrl" else sticky + "ctrl"
-            }
-            KeyCap("⌥", sticky.contains("alt")) {
-                sticky = if (sticky.contains("alt")) sticky - "alt" else sticky + "alt"
-            }
-            KeyCap("⌘", sticky.contains("cmd")) {
-                sticky = if (sticky.contains("cmd")) sticky - "cmd" else sticky + "cmd"
-            }
-            KeyCap("space", weight = 2f) { pressChar(' ') }
-            IconKeyCap(Icons.AutoMirrored.Outlined.KeyboardReturn) { pressCombo("enter") }
+            KeyCap("Ctrl", active = sticky.contains("ctrl"), modifier = Modifier.weight(1f)) { toggle("ctrl") }
+            KeyCap("⌥", active = sticky.contains("alt"), modifier = Modifier.weight(1f)) { toggle("alt") }
+            KeyCap("⌘", active = sticky.contains("cmd"), modifier = Modifier.weight(1f)) { toggle("cmd") }
+            KeyCap("space", modifier = Modifier.weight(2f)) { pressChar(' ') }
+            IconKeyCap(Icons.AutoMirrored.Outlined.KeyboardReturn, modifier = Modifier.weight(1.4f)) { pressCombo("enter") }
         }
+
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Spacer(Modifier.weight(1f))
-            KeyCap("←", weight = 1f) { pressCombo("left") }
+            KeyCap("←", modifier = Modifier.weight(1f)) { pressCombo("left") }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                KeyCap("↑") { pressCombo("up") }
-                KeyCap("↓") { pressCombo("down") }
+                KeyCap("↑", modifier = Modifier.fillMaxWidth()) { pressCombo("up") }
+                KeyCap("↓", modifier = Modifier.fillMaxWidth()) { pressCombo("down") }
             }
-            KeyCap("→", weight = 1f) { pressCombo("right") }
+            KeyCap("→", modifier = Modifier.weight(1f)) { pressCombo("right") }
             Spacer(Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-private fun KeyRow(keys: List<String>, weight: Float = 1f, onPress: (String) -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+private fun KeyRow(keys: List<String>, modifier: Modifier = Modifier, onPress: (String) -> Unit) {
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         keys.forEach { k ->
-            KeyCap(k, weight = weight) { onPress(k) }
+            KeyCap(k, modifier = Modifier.weight(1f)) { onPress(k) }
         }
     }
 }
 
 @Composable
-private fun IconKeyCap(icon: androidx.compose.ui.graphics.vector.ImageVector, onPress: () -> Unit) {
+private fun IconKeyCap(icon: ImageVector, modifier: Modifier = Modifier, onPress: () -> Unit) {
     Surface(
         onClick = onPress,
-        modifier = Modifier.weight(1.4f).height(44.dp),
+        modifier = modifier.height(44.dp),
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
@@ -267,10 +255,15 @@ private fun IconKeyCap(icon: androidx.compose.ui.graphics.vector.ImageVector, on
 }
 
 @Composable
-private fun KeyCap(label: String, active: Boolean = false, weight: Float = 1f, onPress: () -> Unit) {
+private fun KeyCap(
+    label: String,
+    active: Boolean = false,
+    modifier: Modifier = Modifier,
+    onPress: () -> Unit
+) {
     Surface(
         onClick = onPress,
-        modifier = Modifier.weight(weight).height(44.dp),
+        modifier = modifier.height(44.dp),
         shape = RoundedCornerShape(8.dp),
         color = if (active) Accent else MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
@@ -279,8 +272,7 @@ private fun KeyCap(label: String, active: Boolean = false, weight: Float = 1f, o
             Text(
                 label,
                 style = MaterialTheme.typography.labelLarge,
-                color = if (active) androidx.compose.ui.graphics.Color.White
-                else MaterialTheme.colorScheme.onSurface
+                color = if (active) Color.White else MaterialTheme.colorScheme.onSurface
             )
         }
     }
