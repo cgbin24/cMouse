@@ -27,9 +27,23 @@ jobs:
 
       - name: 构建 Debug APK（自带调试签名，可直接安装）
         run: |
+          set -o pipefail
           curl -sL -o /tmp/gradle.zip "https://services.gradle.org/distributions/gradle-8.10.2-bin.zip"
           unzip -q /tmp/gradle.zip -d /tmp
-          /tmp/gradle-8.10.2/bin/gradle -p android assembleDebug --no-daemon
+          /tmp/gradle-8.10.2/bin/gradle -p android assembleDebug --no-daemon 2>&1 | tee /tmp/build.log
+
+      # 失败时把编译错误汇总打到日志末尾，避免截图滚动找错
+      - name: 输出编译错误摘要
+        if: failure()
+        run: |
+          grep -E "e: |error: " /tmp/build.log | head -80 || echo "未找到 e:/error: 行，请查看 build-log 工件"
+
+      - name: 上传完整构建日志（失败时）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: /tmp/build.log
 
       - uses: actions/upload-artifact@v4
         with:
