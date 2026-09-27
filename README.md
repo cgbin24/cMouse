@@ -79,12 +79,19 @@ cMouse/
 
 ### 获取 APK（三选一）
 
-1. **GitHub Actions（推荐，无需本机装任何工具）**：把本仓库推到 GitHub →
-   Actions → `build-android` → Run workflow → 下载 `cMouse-debug-apk` Artifact，
-   传到手机直接安装（Debug 签名可直接安装）。
-2. **Android Studio**：打开 `android/` 目录 → Build → Build APK(s)。
-3. **本机命令行**（需要自行安装 JDK 17 / Gradle / Android SDK，`scripts/setup-android-toolchain.sh` 可参考）：
-   `gradle -p android assembleDebug`。
+> 注意：构建产物（Artifacts）**不在仓库目录里，也不会创建分支**——它们挂在 Actions 运行页面底部
+> 的 Artifacts 栏，需登录 GitHub 下载，保留 90 天。想要永久、显眼的下载入口，用 Releases（见方式 1）。
+
+1. **Releases（推荐，永久保存）**：推送版本标签，构建成功后 APK 与 Windows exe 自动出现在
+   仓库首页的 Releases 栏：
+   ```bash
+   git tag v1.0.0 && git push origin v1.0.0
+   ```
+2. **Actions Artifacts**：仓库页 Actions → 点进某次构建运行 → 页面底部 Artifacts → 下载
+   `cMouse-debug-apk`（zip 内是 app-debug.apk，Debug 签名可直接安装）。
+3. **本机构建**：装 Android Studio 打开 `android/` 目录 → Build → Build APK(s)；
+   或自行装好 JDK 17 / Gradle / Android SDK 后执行 `gradle -p android assembleDebug`
+   （`scripts/setup-android-toolchain.sh` 仅供参考）。
 
 ### 构建接收端（如需自行构建）
 
