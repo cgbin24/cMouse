@@ -40,6 +40,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
         fun swipe(fingers: Int, dir: SwipeDir)
         fun haptic()
         fun momentumTick(dy: Float)
+        fun direction(dir: SwipeDir?)
     }
 
     private enum class Mode { IDLE, ONE, TWO, THREE, DRAG, SCROLL_MOMENTUM }
@@ -66,6 +67,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
 
     // 三指状态
     private var threeInitX = 0f; private var threeInitY = 0f
+    private var threeLastX = 0f; private var threeLastY = 0f
 
     // 惯性
     private var momentumVx = 0f; private var momentumVy = 0f
@@ -113,6 +115,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
         velocity?.clear()
         velocity = VelocityTracker.obtain()
         velocity?.addMovement(e)
+        sink.direction(null)
         handler.postDelayed(longPressRunnable, cfg.longPressMs)
     }
 
@@ -132,10 +135,13 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
                 pinchMode = false
                 scrollAccX = 0f; scrollAccY = 0f
                 zoomAcc = 0f
+                velocity?.addMovement(e)
             }
             3 -> {
                 mode = Mode.THREE
                 threeInitX = centroidX(e); threeInitY = centroidY(e)
+                threeLastX = threeInitX; threeLastY = threeInitY
+                velocity?.addMovement(e)
             }
             else -> mode = Mode.IDLE
         }
@@ -148,11 +154,13 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
                 val dx = e.x - lastX; val dy = e.y - lastY
                 lastX = e.x; lastY = e.y
                 if (dist(downX, downY, e.x, e.y) > cfg.slop) handler.removeCallbacks(longPressRunnable)
+                updateDirection(dx, dy)
                 sink.move(dx, dy)
             }
             Mode.DRAG -> {
                 val dx = e.x - lastX; val dy = e.y - lastY
                 lastX = e.x; lastY = e.y
+                updateDirection(dx, dy)
                 sink.move(dx, dy)
             }
             Mode.TWO -> {
@@ -164,13 +172,16 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
                 if (dist(cx, cy, twoInitX, twoInitY) > cfg.slop * 1.5f) twoFingerMoved = true
 
                 if (!pinchMode) {
-                    val spanRatio = span / spanInit
-                    if (abs(spanRatio - 1f) > cfg.zoomStepRatio) pinchMode = true
+                    val spanRatio = if (spanInit > 0f) span / spanInit else 1f
+                    if (abs(spanRatio - 1f) > cfg.zoomStepRatio) {
+                        pinchMode = true
+                        twoFingerMoved = true
+                    }
                 }
 
                 if (pinchMode) {
                     // 缩放：跨度每变化 zoomStepRatio 记 1 格
-                    zoomAcc += (span - spanLast) / spanInit
+                    if (spanInit > 0f) zoomAcc += (span - spanLast) / spanInit
                     while (abs(zoomAcc) >= cfg.zoomStepRatio) {
                         sink.zoom(sign(zoomAcc) * cfg.zoomStepRatio * 100f)
                         zoomAcc -= sign(zoomAcc) * cfg.zoomStepRatio
@@ -185,18 +196,22 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
                         sink.scroll(tx.toFloat(), ty.toFloat())
                     }
                 }
+                if (abs(movedX) > 0.5f || abs(movedY) > 0.5f) updateDirection(movedX, movedY)
                 twoLastX = cx; twoLastY = cy
                 spanLast = span
             }
-            Mode.THREE -> {}
+            Mode.THREE -> {
+                threeLastX = centroidX(e); threeLastY = centroidY(e)
+                updateDirection(threeLastX - threeInitX, threeLastY - threeInitY)
+            }
             else -> {}
         }
     }
 
     private fun onPointerUp(e: MotionEvent) {
         if (e.pointerCount == 3 && mode == Mode.THREE) {
-            // 三指 -> 双指，本次手势结束
-            threeSwipeDecide(e)
+            // 计算抬指前最后一个完整三指位置，避免使用已失效的指针坐标。
+            threeSwipeDecide(threeLastX, threeLastY)
             reset()
         }
     }
@@ -220,7 +235,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
             }
             Mode.TWO -> {
                 val tapOk = System.currentTimeMillis() - twoFingerTapStart < cfg.tapTimeoutMs + 60 &&
-                    !twoFingerMoved && dist(e.x, e.y, downX, downY) < cfg.slop * 2.5f
+                    !twoFingerMoved
                 if (tapOk) {
                     sink.click(InputDispatcher.BUTTON_RIGHT, false)
                 } else {
@@ -234,16 +249,20 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
                     }
                 }
             }
-            Mode.THREE -> threeSwipeDecide(e)
+            Mode.THREE -> threeSwipeDecide(threeLastX, threeLastY)
             else -> {}
         }
         velocity?.recycle()
         velocity = null
+        sink.direction(null)
         if (mode != Mode.SCROLL_MOMENTUM) mode = Mode.IDLE
     }
 
     private fun threeSwipeDecide(e: MotionEvent) {
-        val cx = centroidX(e); val cy = centroidY(e)
+        threeSwipeDecide(centroidX(e), centroidY(e))
+    }
+
+    private fun threeSwipeDecide(cx: Float, cy: Float) {
         val dx = cx - threeInitX; val dy = cy - threeInitY
         if (hypot(dx.toDouble(), dy.toDouble()) < cfg.swipeMinPx) return
         val dir = if (abs(dy) > abs(dx)) {
@@ -264,6 +283,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
         velocity?.recycle()
         velocity = null
         mode = Mode.IDLE
+        sink.direction(null)
     }
 
     private fun centroidX(e: MotionEvent): Float {
@@ -276,4 +296,15 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
 
     private fun dist(x1: Float, y1: Float, x2: Float, y2: Float): Float =
         hypot((x2 - x1).toDouble(), (y2 - y1).toDouble()).toFloat()
+
+    private fun updateDirection(dx: Float, dy: Float) {
+        if (abs(dx) < 0.5f && abs(dy) < 0.5f) return
+        sink.direction(
+            if (abs(dx) > abs(dy)) {
+                if (dx < 0f) SwipeDir.LEFT else SwipeDir.RIGHT
+            } else {
+                if (dy < 0f) SwipeDir.UP else SwipeDir.DOWN
+            }
+        )
+    }
 }

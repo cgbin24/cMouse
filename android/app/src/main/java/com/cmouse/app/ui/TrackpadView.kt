@@ -1,6 +1,10 @@
 package com.cmouse.app.ui
 
 import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.Color
 import android.view.GestureDetector
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
@@ -36,6 +40,18 @@ class TrackpadView(
         override fun haptic() {
             performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
         }
+        override fun direction(dir: SwipeDir?) {
+            activeDirection = dir
+            invalidate()
+        }
+    }
+
+    private var activeDirection: SwipeDir? = null
+    private val directionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+        strokeWidth = dp(2f)
     }
 
     private val engine = GestureEngine(
@@ -60,6 +76,38 @@ class TrackpadView(
     init {
         // 保持屏幕常亮：触控板使用中不应锁屏
         keepScreenOn = true
+        setWillNotDraw(false)
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        val inset = dp(26f)
+        drawDirection(canvas, SwipeDir.UP, width / 2f, inset)
+        drawDirection(canvas, SwipeDir.DOWN, width / 2f, height - inset)
+        drawDirection(canvas, SwipeDir.LEFT, inset, height / 2f)
+        drawDirection(canvas, SwipeDir.RIGHT, width - inset, height / 2f)
+    }
+
+    private fun drawDirection(canvas: Canvas, dir: SwipeDir, x: Float, y: Float) {
+        directionPaint.color = if (activeDirection == dir) Color.argb(220, 45, 135, 235)
+        else Color.argb(70, 90, 100, 115)
+        val size = dp(11f)
+        val path = Path()
+        when (dir) {
+            SwipeDir.UP -> {
+                path.moveTo(x, y - size); path.lineTo(x - size, y); path.moveTo(x, y - size); path.lineTo(x + size, y)
+            }
+            SwipeDir.DOWN -> {
+                path.moveTo(x, y + size); path.lineTo(x - size, y); path.moveTo(x, y + size); path.lineTo(x + size, y)
+            }
+            SwipeDir.LEFT -> {
+                path.moveTo(x - size, y); path.lineTo(x, y - size); path.moveTo(x - size, y); path.lineTo(x, y + size)
+            }
+            SwipeDir.RIGHT -> {
+                path.moveTo(x + size, y); path.lineTo(x, y - size); path.moveTo(x + size, y); path.lineTo(x, y + size)
+            }
+        }
+        canvas.drawPath(path, directionPaint)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {

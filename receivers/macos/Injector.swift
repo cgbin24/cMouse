@@ -16,7 +16,7 @@ enum Injector {
         let screen = NSScreen.screens.first?.frame ?? CGRect(x: 0, y: 0, width: 1920, height: 1080)
         // 多显示器坐标空间以主屏左上为原点；简单钳制防止光标丢失在负空间
         let x = min(max(current.x + dx, screen.minX), screen.maxX)
-        let y = min(max(current.y - dy, screen.minY), screen.maxY) // 屏幕坐标系 y 轴向下
+        let y = min(max(current.y + dy, screen.minY), screen.maxY) // 屏幕坐标系 y 轴向下
         guard let e = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved,
                               mouseCursorPosition: CGPoint(x: x, y: y), mouseButton: .left) else { return }
         e.post(tap: .cghidEventTap)
