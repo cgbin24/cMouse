@@ -24,7 +24,7 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardReturn
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Keyboard
-import androidx.compose.material.icons.outlined.Mouse
+import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -194,7 +194,7 @@ fun TrackpadScreen(
                             contentColor = MaterialTheme.colorScheme.onSurface
                         )
                     ) {
-                        Icon(Icons.Outlined.Mouse, contentDescription = null)
+                        Icon(Icons.Outlined.TouchApp, contentDescription = null)
                         Spacer(Modifier.width(6.dp))
                         Text("左键")
                     }
