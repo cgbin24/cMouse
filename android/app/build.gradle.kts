@@ -10,12 +10,12 @@ android {
 
     defaultConfig {
         applicationId = "com.cmouse.app"
-        // 低版本兼容：Wi-Fi 接收端模式支持到 Android 7.0 (API 24)；
+        // 低版本兼容：Wi-Fi 接收端模式支持到 Android 6.0 (API 23，覆盖 OPPO R9st 等机型)；
         // 蓝牙 HID 免安装模式需要 Android 9 (API 28)，代码内按系统版本门控。
-        minSdk = 24
+        minSdk = 23
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.2"
     }
 
     buildTypes {

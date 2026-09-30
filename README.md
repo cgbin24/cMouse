@@ -62,7 +62,7 @@ cMouse/
 
 | 组件 | 最低版本 | 说明 |
 |------|----------|------|
-| Android 客户端 · Wi-Fi 模式 | Android 7.0 (API 24) | 低版本手机的可选路径 |
+| Android 客户端 · Wi-Fi 模式 | Android 6.0 (API 23) | 覆盖 OPPO R9st 等老机型 |
 | Android 客户端 · 蓝牙免安装模式 | Android 9.0 (API 28) | `BluetoothHidDevice` 系统要求；App 内按版本门控，低版本自动提示改用 Wi-Fi 模式 |
 | iOS 客户端 | iOS 15.0 | SwiftUI 生命周期框架的下限；源码已按 iOS 15 目标通过编译检查（iPhone 6s 及以后机型均可） |
 | macOS 接收端 | macOS 11 Big Sur | Universal 2 二进制（Intel + Apple Silicon） |

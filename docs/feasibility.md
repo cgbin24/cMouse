@@ -96,8 +96,8 @@
 
 ### 手机端系统版本要求
 
-- 模式 A：Android 9.0+（`BluetoothHidDevice`）；Android 12+ 需运行时申请 `BLUETOOTH_CONNECT`。
-- 模式 B：Android 7.0+（minSdk 24，App 内按系统版本门控蓝牙模式）/ iOS 15+。
+- 模式 A：Android 9.0+（`BluetoothHidDevice`）；Android 12+ 需运行时申请 `BLUETOOTH_CONNECT`/`BLUETOOTH_ADVERTISE`。
+- 模式 B：Android 6.0+（minSdk 23，App 内按系统版本门控蓝牙模式）/ iOS 15+。
 - 桌面接收端：macOS 11+（Universal 2，Intel/Apple Silicon）/ Windows 10+。
 
 ---
