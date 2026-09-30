@@ -43,7 +43,12 @@ class HidService : Service() {
                 statusListener?.onError(message)
             }
         })
-        hid.start()
+        try {
+            hid.start()
+        } catch (e: Throwable) {
+            lastError = "启动异常：${e.javaClass.simpleName}: ${e.message ?: ""}"
+            statusListener?.onError(lastError!!)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int =

@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -40,6 +41,10 @@ import com.cmouse.app.ui.CMouseTheme
 import com.cmouse.app.ui.KeyboardScreen
 import com.cmouse.app.ui.SettingsScreen
 import com.cmouse.app.ui.TrackpadScreen
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
 
@@ -57,6 +62,7 @@ class MainActivity : ComponentActivity() {
     private var lanState by mutableStateOf(LanClient.State.CLOSED)
     private var lanMsg by mutableStateOf("")
     private var statusVersion by mutableStateOf(0) // 触发设置页设备列表刷新
+    private var crashReport by mutableStateOf<String?>(null)
 
     private val statusRelay = object : HidDeviceManager.Listener {
         override fun onRegistered(registered: Boolean) {
@@ -111,15 +117,43 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        installCrashReporter()
         settings = SettingsStore(this)
         dispatcher = InputDispatcher(settings)
         dispatcher.hidProvider = { hidService?.hid }
         dispatcher.lanProvider = { lanClient }
+        crashReport = readLastCrash()
         setContent {
             CMouseTheme {
                 MainScaffold()
             }
         }
+    }
+
+    /** 黑匣子：任何未捕获异常写入本地文件，下次启动展示给用户。 */
+    private fun installCrashReporter() {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            try {
+                val time = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+                File(filesDir, "last_crash.txt").writeText(
+                    "时间: $time\n" +
+                        "设备: ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE}" +
+                        " (API ${Build.VERSION.SDK_INT})\n" +
+                        "线程: ${t.name}\n" +
+                        Log.getStackTraceString(e)
+                )
+            } catch (_: Throwable) {
+            }
+            previous?.uncaughtException(t, e)
+        }
+    }
+
+    private fun readLastCrash(): String? = try {
+        val f = File(filesDir, "last_crash.txt")
+        if (f.exists()) f.readText().take(1500) else null
+    } catch (_: Throwable) {
+        null
     }
 
     /**
@@ -136,24 +170,29 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun doStartHid() {
-        val intent = Intent(this, HidService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
-        else startService(intent)
-        if (!hidBound) {
-            bindService(intent, conn, Context.BIND_AUTO_CREATE)
-            hidBound = true
-        }
-        // 注册后手机需处于可被发现状态，电脑才能在蓝牙设置中看到它
-        val adapter = getSystemService(BluetoothManager::class.java)?.adapter
-        if (adapter != null && adapter.isEnabled &&
-            adapter.scanMode != BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE
-        ) {
-            val d = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
-            d.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300)
-            try {
-                startActivity(d)
-            } catch (_: Exception) {
+        // 启动链路上的任何异常都转为界面提示，避免无信息闪退
+        try {
+            val intent = Intent(this, HidService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
+            else startService(intent)
+            if (!hidBound) {
+                bindService(intent, conn, Context.BIND_AUTO_CREATE)
+                hidBound = true
             }
+            // 注册后手机需处于可被发现状态，电脑才能在蓝牙设置中看到它
+            val adapter = getSystemService(BluetoothManager::class.java)?.adapter
+            if (adapter != null && adapter.isEnabled &&
+                adapter.scanMode != BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE
+            ) {
+                val d = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
+                d.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300)
+                try {
+                    startActivity(d)
+                } catch (_: Exception) {
+                }
+            }
+        } catch (e: Exception) {
+            hidMsg = "启动失败：${e.javaClass.simpleName}: ${e.message ?: ""}"
         }
     }
 
@@ -231,7 +270,8 @@ class MainActivity : ComponentActivity() {
                     hidMsg = hidMsg,
                     lanState = lanState,
                     lanMsg = lanMsg,
-                    version = statusVersion
+                    version = statusVersion,
+                    crashReport = crashReport
                 )
                 when (tab) {
                     Tab.TRACKPAD -> TrackpadScreen(
@@ -240,7 +280,8 @@ class MainActivity : ComponentActivity() {
                         dispatcher = dispatcher,
                         activity = this@MainActivity,
                         status = status,
-                        onOpenKeyboard = { tab = Tab.KEYBOARD }
+                        onOpenKeyboard = { tab = Tab.KEYBOARD },
+                        onDismissCrash = { crashReport = null }
                     )
                     Tab.KEYBOARD -> KeyboardScreen(
                         modifier = Modifier.fillMaxSize(),
@@ -266,5 +307,6 @@ data class ConnectionStatus(
     val hidMsg: String,
     val lanState: LanClient.State,
     val lanMsg: String,
-    val version: Int
+    val version: Int,
+    val crashReport: String? = null
 )

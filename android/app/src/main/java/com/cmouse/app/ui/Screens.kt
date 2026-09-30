@@ -10,14 +10,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Backspace
 import androidx.compose.material.icons.automirrored.outlined.KeyboardReturn
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -53,8 +57,30 @@ fun TrackpadScreen(
     dispatcher: InputDispatcher,
     activity: MainActivity,
     status: ConnectionStatus,
-    onOpenKeyboard: () -> Unit
+    onOpenKeyboard: () -> Unit,
+    onDismissCrash: () -> Unit = {}
 ) {
+    // 上次异常退出的崩溃报告（黑匣子）
+    if (status.crashReport != null) {
+        AlertDialog(
+            onDismissRequest = onDismissCrash,
+            title = { Text("上次异常退出报告") },
+            text = {
+                Column(
+                    Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        status.crashReport ?: "",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onDismissCrash) { Text("知道了") }
+            }
+        )
+    }
+
     val lanMode = settings.getString(SettingsStore.Keys.MODE, "hid") == "lan"
     val connected = if (lanMode) status.lanState == LanClient.State.READY
     else (status.hidRegistered && status.hostName != null)
