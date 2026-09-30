@@ -15,7 +15,11 @@ import android.os.IBinder
  */
 class HidService : Service() {
 
-    lateinit var hid: HidDeviceManager
+    /**
+     * 仅 Android 9+ 才会构造（BluetoothHidDevice 相关类在 API<28 上不存在，
+     * 过早构造会在类加载时抛 NoClassDefFoundError，已在 Android 6.0 实测复现）。
+     */
+    var hid: HidDeviceManager? = null
         private set
 
     private val binder = LocalBinder()
@@ -27,27 +31,31 @@ class HidService : Service() {
     override fun onCreate() {
         super.onCreate()
         startForegroundNotification()
-        hid = HidDeviceManager(applicationContext, object : HidDeviceManager.Listener {
-            override fun onRegistered(registered: Boolean) {
-                if (registered) lastError = null
-                statusListener?.onRegistered(registered)
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            hid = HidDeviceManager(applicationContext, object : HidDeviceManager.Listener {
+                override fun onRegistered(registered: Boolean) {
+                    if (registered) lastError = null
+                    statusListener?.onRegistered(registered)
+                }
 
-            override fun onHostChanged(name: String?, connected: Boolean) {
-                statusListener?.onHostChanged(name, connected)
-            }
+                override fun onHostChanged(name: String?, connected: Boolean) {
+                    statusListener?.onHostChanged(name, connected)
+                }
 
-            override fun onError(message: String) {
-                // 绑定发生前产生的错误先缓存，绑定后由 Activity 补发
-                lastError = message
-                statusListener?.onError(message)
+                override fun onError(message: String) {
+                    // 绑定发生前产生的错误先缓存，绑定后由 Activity 补发
+                    lastError = message
+                    statusListener?.onError(message)
+                }
+            })
+            try {
+                hid?.start()
+            } catch (e: Throwable) {
+                lastError = "启动异常：${e.javaClass.simpleName}: ${e.message ?: ""}"
+                statusListener?.onError(lastError!!)
             }
-        })
-        try {
-            hid.start()
-        } catch (e: Throwable) {
-            lastError = "启动异常：${e.javaClass.simpleName}: ${e.message ?: ""}"
-            statusListener?.onError(lastError!!)
+        } else {
+            lastError = "蓝牙直连模式需要 Android 9.0 以上（当前 Android ${Build.VERSION.RELEASE}），请改用 Wi-Fi 接收端模式"
         }
     }
 
@@ -55,7 +63,7 @@ class HidService : Service() {
         START_STICKY
 
     override fun onDestroy() {
-        hid.stop()
+        hid?.stop()
         super.onDestroy()
     }
 

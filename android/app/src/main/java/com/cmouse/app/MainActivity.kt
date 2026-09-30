@@ -170,6 +170,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun doStartHid() {
+        // Android 9 以下不存在 BluetoothHidDevice 相关系统类，
+        // 不能启动 HID 服务（连构造都不行，会 NoClassDefFoundError）
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            hidMsg = "蓝牙直连模式需要 Android 9.0 以上（当前 Android ${Build.VERSION.RELEASE}），请改用 Wi-Fi 接收端模式"
+            return
+        }
         // 启动链路上的任何异常都转为界面提示，避免无信息闪退
         try {
             val intent = Intent(this, HidService::class.java)
