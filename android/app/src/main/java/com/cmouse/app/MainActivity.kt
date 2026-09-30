@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -33,12 +34,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import com.cmouse.app.data.SettingsStore
 import com.cmouse.app.hid.HidDeviceManager
 import com.cmouse.app.hid.HidService
 import com.cmouse.app.input.InputDispatcher
 import com.cmouse.app.transport.LanClient
 import com.cmouse.app.ui.CMouseTheme
+import com.cmouse.app.ui.Accent
 import com.cmouse.app.ui.KeyboardScreen
 import com.cmouse.app.ui.SettingsScreen
 import com.cmouse.app.ui.TrackpadScreen
