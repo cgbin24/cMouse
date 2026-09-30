@@ -44,14 +44,29 @@ class TrackpadView(
             activeDirection = dir
             invalidate()
         }
+        override fun dragging(active: Boolean) {
+            isDragging = active
+            invalidate()
+        }
     }
 
     private var activeDirection: SwipeDir? = null
+    private var isDragging = false
     private val directionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
         strokeWidth = dp(2f)
+    }
+    private val dragPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = dp(3f)
+        color = Color.argb(220, 45, 135, 235)
+    }
+    private val dragTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        textSize = dp(13f)
+        color = Color.argb(220, 45, 135, 235)
     }
 
     private val engine = GestureEngine(
@@ -86,6 +101,12 @@ class TrackpadView(
         drawDirection(canvas, SwipeDir.DOWN, width / 2f, height - inset)
         drawDirection(canvas, SwipeDir.LEFT, inset, height / 2f)
         drawDirection(canvas, SwipeDir.RIGHT, width - inset, height / 2f)
+        if (isDragging) {
+            val cx = width / 2f
+            val cy = height / 2f
+            canvas.drawCircle(cx, cy, dp(30f), dragPaint)
+            canvas.drawText("拖动中", cx, cy + dp(5f), dragTextPaint)
+        }
     }
 
     private fun drawDirection(canvas: Canvas, dir: SwipeDir, x: Float, y: Float) {

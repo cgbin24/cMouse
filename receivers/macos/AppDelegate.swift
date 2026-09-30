@@ -17,8 +17,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         server.start()
 
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.title = "⌖"
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        if let button = statusItem.button {
+            button.image = NSImage(
+                systemSymbolName: "cursorarrow.click.2",
+                accessibilityDescription: "cMouse"
+            )
+            button.imagePosition = .imageOnly
+            button.title = "⌖"
+            button.toolTip = "cMouse"
+        }
         buildMenu()
 
         if !Injector.isAccessibilityGranted() {

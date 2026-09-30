@@ -41,6 +41,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
         fun haptic()
         fun momentumTick(dx: Float, dy: Float)
         fun direction(dir: SwipeDir?)
+        fun dragging(active: Boolean)
     }
 
     private enum class Mode { IDLE, ONE, TWO, THREE, DRAG, SCROLL_MOMENTUM }
@@ -95,6 +96,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
             pendingSingleTap = false
             secondTapCandidate = false
             sink.haptic()
+            sink.dragging(true)
             sink.buttonDown(InputDispatcher.BUTTON_LEFT)
         }
     }
@@ -256,6 +258,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
             }
             Mode.DRAG -> {
                 sink.buttonUp(InputDispatcher.BUTTON_LEFT)
+                sink.dragging(false)
             }
             Mode.TWO -> {
                 val tapOk = e.eventTime - twoFingerTapStart < cfg.tapTimeoutMs + 60 &&
@@ -311,6 +314,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
         velocity = null
         mode = Mode.IDLE
         sink.direction(null)
+        sink.dragging(false)
     }
 
     private fun centroidX(e: MotionEvent): Float {
