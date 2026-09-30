@@ -89,7 +89,7 @@ fun TrackpadScreen(
     val connected = if (lanMode) status.lanState == LanClient.State.READY
     else (status.hidRegistered && status.hostName != null)
     var showConnection by remember { mutableStateOf(false) }
-    var showGestures by remember { mutableStateOf(false) }
+    var showControls by remember { mutableStateOf(true) }
 
     Column(
         modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
@@ -169,45 +169,45 @@ fun TrackpadScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("控制面板", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.weight(1f))
-                    IconButton(onClick = { showGestures = !showGestures }) {
+                    IconButton(onClick = { showControls = !showControls }) {
                         Icon(
-                            if (showGestures) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                            contentDescription = if (showGestures) "收起手势说明" else "展开手势说明"
+                            if (showControls) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                            contentDescription = if (showControls) "收起控制面板" else "展开控制面板"
                         )
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = onOpenKeyboard,
-                        modifier = Modifier.weight(1f),
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Accent)
-                    ) {
-                        Icon(Icons.Outlined.Keyboard, contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
-                        Text("键盘")
+                if (showControls) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onOpenKeyboard,
+                            modifier = Modifier.weight(1f),
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Accent)
+                        ) {
+                            Icon(Icons.Outlined.Keyboard, contentDescription = null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("键盘")
+                        }
+                        Button(
+                            onClick = { dispatcher.click(InputDispatcher.BUTTON_LEFT, false) },
+                            modifier = Modifier.weight(1f),
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            Icon(Icons.Outlined.TouchApp, contentDescription = null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("左键")
+                        }
+                        Button(
+                            onClick = { dispatcher.click(InputDispatcher.BUTTON_RIGHT, false) },
+                            modifier = Modifier.weight(1f),
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        ) { Text("右键") }
                     }
-                    Button(
-                        onClick = { dispatcher.click(InputDispatcher.BUTTON_LEFT, false) },
-                        modifier = Modifier.weight(1f),
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            contentColor = MaterialTheme.colorScheme.onSurface
-                        )
-                    ) {
-                        Icon(Icons.Outlined.TouchApp, contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
-                        Text("左键")
-                    }
-                    Button(
-                        onClick = { dispatcher.click(InputDispatcher.BUTTON_RIGHT, false) },
-                        modifier = Modifier.weight(1f),
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            contentColor = MaterialTheme.colorScheme.onSurface
-                        )
-                    ) { Text("右键") }
-                }
-                if (showGestures) {
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "单指移动与轻点 · 双指滚动、右键与捏合 · 三指切换空间或窗口",

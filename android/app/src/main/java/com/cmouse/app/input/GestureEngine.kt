@@ -55,6 +55,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
     private var lastTapTime = 0L
     private var lastTapX = 0f; private var lastTapY = 0f
     private var pendingSingleTap = false
+    private var secondTapCandidate = false
     private var twoFingerTapStart = 0L
     private var twoFingerMoved = false
 
@@ -78,7 +79,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
             val dxTicks = momentumVx / 1000f * (1f / 60f) / cfg.scrollStepPx
             val dyTicks = momentumVy / 1000f * (1f / 60f) / cfg.scrollStepPx
             if (abs(dxTicks) > 0.02f || abs(dyTicks) > 0.02f) {
-                sink.momentumTick(dxTicks, dyTicks)
+                sink.momentumTick(dxTicks, -dyTicks)
                 momentumVy *= 0.9f
                 momentumVx *= 0.9f
                 handler.postDelayed(this, 16)
@@ -91,6 +92,8 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
     private val longPressRunnable = Runnable {
         if (mode == Mode.ONE && dist(downX, downY, lastX, lastY) < cfg.slop) {
             mode = Mode.DRAG
+            pendingSingleTap = false
+            secondTapCandidate = false
             sink.haptic()
             sink.buttonDown(InputDispatcher.BUTTON_LEFT)
         }
@@ -117,6 +120,8 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
 
     private fun onTouchDown(e: MotionEvent) {
         stopMomentum()
+        secondTapCandidate = pendingSingleTap && e.eventTime - lastTapTime <= cfg.doubleTapMs
+        if (secondTapCandidate) handler.removeCallbacks(singleTapRunnable)
         mode = Mode.ONE
         downX = e.x; downY = e.y
         lastX = e.x; lastY = e.y
@@ -202,7 +207,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
                     val tx = scrollAccX.toInt(); val ty = scrollAccY.toInt()
                     if (tx != 0 || ty != 0) {
                         scrollAccX -= tx; scrollAccY -= ty
-                        sink.scroll(tx.toFloat(), ty.toFloat())
+                        sink.scroll(tx.toFloat(), -ty.toFloat())
                     }
                 }
                 if (abs(movedX) > 0.5f || abs(movedY) > 0.5f) updateDirection(movedX, movedY)
@@ -220,6 +225,8 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
     private fun onPointerUp(e: MotionEvent) {
         if (e.pointerCount == 3 && mode == Mode.THREE) {
             // 计算抬指前最后一个完整三指位置，避免使用已失效的指针坐标。
+            threeLastX = centroidX(e)
+            threeLastY = centroidY(e)
             threeSwipeDecide(threeLastX, threeLastY)
             reset()
         }
@@ -244,6 +251,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
                     }
                     lastTapTime = now
                     lastTapX = e.x; lastTapY = e.y
+                    secondTapCandidate = false
                 }
             }
             Mode.DRAG -> {

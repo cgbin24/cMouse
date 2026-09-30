@@ -108,7 +108,7 @@ class InputDispatcher(private val settings: SettingsStore) {
             SwipeDir.LEFT -> "three_left"; SwipeDir.RIGHT -> "three_right"
         }.let { if (fingers == 3) it else "${fingers}_${dir.name.lowercase()}" }
         when (val act = settings.gestureAction(gesture)) {
-            null -> {}
+            null -> defaultSwipeAction(fingers, dir)
             else -> when (act.first) {
                 "combo" -> {
                     if (lanMode) lanProvider?.invoke()?.combo(act.second)
@@ -117,6 +117,13 @@ class InputDispatcher(private val settings: SettingsStore) {
                 "none" -> {}
             }
         }
+    }
+
+    private fun defaultSwipeAction(fingers: Int, dir: SwipeDir) {
+        if (fingers != 3 || (dir != SwipeDir.LEFT && dir != SwipeDir.RIGHT)) return
+        val combo = if (dir == SwipeDir.LEFT) "ctrl+left" else "ctrl+right"
+        if (lanMode) lanProvider?.invoke()?.combo(combo)
+        else hidProvider?.invoke()?.sendCombo(combo)
     }
 
     fun text(s: String) {

@@ -62,7 +62,7 @@ class TrackpadView(
             longPressMs = settings.getFloat(SettingsStore.Keys.LONG_PRESS_MS, 600f).toLong(),
             scrollStepPx = dp(18f),
             zoomStepRatio = 0.08f,
-            swipeMinPx = dp(64f)
+            swipeMinPx = dp(44f)
         ),
         sink
     )
