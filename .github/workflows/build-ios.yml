@@ -39,7 +39,7 @@ jobs:
           cp -R ios/build/Build/Products/Release-iphoneos/cMouse.app Payload/
           zip -qry cMouse-unsigned-ios.ipa Payload
           cp cMouse-unsigned-ios.ipa dist/
-          shasum -a 256 dist/cMouse-unsigned-ios.ipa | tee dist/SHA256SUMS.txt
+          shasum -a 256 dist/cMouse-unsigned-ios.ipa | tee dist/SHA256SUMS-ios.txt
 
       - name: 打包现成 Xcode 工程（供 Xcode 签名真机运行）
         run: |
@@ -54,7 +54,7 @@ jobs:
           path: |
             dist/cMouse-unsigned-ios.ipa
             dist/cMouse-xcode-project.zip
-            dist/SHA256SUMS.txt
+            dist/SHA256SUMS-ios.txt
 
       - name: 发布到 Releases（仅当推送 v* 标签）
         if: startsWith(github.ref, 'refs/tags/v')
@@ -62,4 +62,4 @@ jobs:
         with:
           files: |
             dist/cMouse-unsigned-ios.ipa
-            dist/SHA256SUMS.txt
+            dist/SHA256SUMS-ios.txt

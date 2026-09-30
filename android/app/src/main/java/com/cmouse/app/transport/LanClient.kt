@@ -52,7 +52,13 @@ class LanClient(
                             val json = JSONObject(line)
                             when (json.optString("t")) {
                                 "pair-ok" -> listener.onState(State.READY)
-                                "pair-fail" -> listener.onState(State.ERROR, "配对码错误")
+                                "pair-fail" -> {
+                                    val lock = json.optInt("lock", 0)
+                                    listener.onState(
+                                        State.ERROR,
+                                        if (lock > 0) "配对码错误次数过多，已锁定 ${lock} 秒" else "配对码错误"
+                                    )
+                                }
                                 "pong" -> {}
                             }
                         }

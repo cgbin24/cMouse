@@ -145,6 +145,19 @@ dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
 | Android 客户端 | 源码交付（minSdk 24，低版本门控完成），本机未装工具链未编译；GitHub Actions 一键出 APK |
 | Windows 接收端 | 源码交付，GitHub Actions 一键出 exe；本机未编译（API 均为标准 Win32/Sqlite） |
 
+### macOS 安装：解决"Apple 无法验证开发者"（未公证签名）
+
+macOS 的 `.pkg` 为 ad-hoc 签名（苹果公证需要付费开发者账号），浏览器下载的文件会被 Gatekeeper
+拦截——这是系统对一切未公证软件的统一行为，不代表文件有问题。三种安装方式任选：
+
+1. **一键脚本（推荐，无任何拦截）**：`curl` 下载不带隔离属性，自动校验 SHA-256 并安装：
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/cgbin24/cMouse/main/scripts/install-macos.sh | bash
+   ```
+2. **手动放行**：双击 .pkg 遇到"无法验证"后点"完成"，再到 系统设置 → 隐私与安全性 →
+   底部"仍要打开"按钮；或终端执行 `xattr -dr com.apple.quarantine ~/Downloads/cMouse-Receiver-macOS.pkg` 后再双击。
+3. **有付费开发者账号时**：可对仓库代码自行用 Developer ID 证书签名并公证（workflows 里替换签名步骤）。
+
 ## 常见问题排查
 
 ### 安装 APK 时提示"安装包已损坏 / 建议使用应用商店下载"

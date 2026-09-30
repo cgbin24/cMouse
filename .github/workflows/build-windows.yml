@@ -36,7 +36,7 @@ jobs:
         run: |
           Copy-Item output/cMouse.exe output/cMouse-receiver-win-x64.exe
           (Get-FileHash output/cMouse-receiver-win-x64.exe -Algorithm SHA256).Hash |
-            Out-File -Encoding ascii output/SHA256SUMS.txt
+            Out-File -Encoding ascii output/SHA256SUMS-windows.txt
           Get-ChildItem output | Format-Table Name, Length
 
       - name: 构建产物（Actions 运行页 Artifacts）
@@ -45,7 +45,7 @@ jobs:
           name: cMouse-receiver-windows
           path: |
             output/cMouse-receiver-win-x64.exe
-            output/SHA256SUMS.txt
+            output/SHA256SUMS-windows.txt
 
       - name: 发布到 Releases（仅当推送 v* 标签）
         if: startsWith(github.ref, 'refs/tags/v')
@@ -53,4 +53,4 @@ jobs:
         with:
           files: |
             output/cMouse-receiver-win-x64.exe
-            output/SHA256SUMS.txt
+            output/SHA256SUMS-windows.txt

@@ -17,6 +17,43 @@ internal sealed class Server
 
     public string? ConnectedName { get; private set; }
 
+    // 配对码防爆破：连续 5 次错误锁定 300 秒
+    private const int MaxPairAttempts = 5;
+    private const int PairLockSeconds = 300;
+    private int _failedAttempts;
+    private DateTime? _lockUntil;
+
+    /// 返回剩余锁定秒数；0 表示未锁定。
+    private int PairLockRemainingSeconds()
+    {
+        if (_lockUntil.HasValue)
+        {
+            if (DateTime.UtcNow < _lockUntil.Value)
+                return (int)Math.Ceiling((_lockUntil.Value - DateTime.UtcNow).TotalSeconds);
+            _lockUntil = null;
+            _failedAttempts = 0;
+        }
+        return 0;
+    }
+
+    private int RecordPairFailure()
+    {
+        _failedAttempts++;
+        if (_failedAttempts >= MaxPairAttempts)
+        {
+            _lockUntil = DateTime.UtcNow.AddSeconds(PairLockSeconds);
+            _failedAttempts = 0;
+            return PairLockSeconds;
+        }
+        return 0;
+    }
+
+    /// 断开当前客户端（清除数据后调用，强制重新配对）。
+    public void DisconnectCurrent()
+    {
+        try { _current?.Close(); } catch { }
+    }
+
     public Server(DB db) { _db = db; }
 
     public void Start()
@@ -98,11 +135,20 @@ internal sealed class Server
 
                     if (type == "hello")
                     {
+                        // 防爆破：锁定期间直接拒绝
+                        var locked = PairLockRemainingSeconds();
+                        if (locked > 0)
+                        {
+                            await SendAsync(stream, "{\"t\":\"pair-fail\",\"lock\":" + locked + "}");
+                            return;
+                        }
                         var code = doc.RootElement.TryGetProperty("code", out var c) ? c.GetString() : null;
                         name = doc.RootElement.TryGetProperty("name", out var nm) ? nm.GetString() ?? "手机" : "手机";
                         if (code == _db.PairCode)
                         {
                             paired = true;
+                            _failedAttempts = 0;
+                            _lockUntil = null;
                             ConnectedName = name;
                             _db.RememberDevice(remote, name);
                             await SendAsync(stream, """{"t":"pair-ok"}""");
@@ -110,7 +156,8 @@ internal sealed class Server
                         }
                         else
                         {
-                            await SendAsync(stream, """{"t":"pair-fail"}""");
+                            var lockSec = RecordPairFailure();
+                            await SendAsync(stream, "{\"t\":\"pair-fail\",\"lock\":" + lockSec + "}");
                             return; // 关闭连接
                         }
                         continue;

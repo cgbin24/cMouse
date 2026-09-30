@@ -13,10 +13,47 @@ final class Server {
     private var peer: Peer?
     private let queue = DispatchQueue(label: "cmouse.server")
 
-    private var statCounter = 0
+    // 配对码防爆破：连续 5 次错误锁定 300 秒
+    private let maxPairAttempts = 5
+    private let pairLockSeconds = 300
+    private var failedAttempts = 0
+    private var lockUntil: Date?
 
     init(db: DB) {
         self.db = db
+    }
+
+    // MARK: - 配对防爆破
+
+    /// 返回剩余锁定秒数；0 表示未锁定。
+    func pairLockRemaining() -> Int {
+        if let until = lockUntil {
+            if Date() < until { return Int(until.timeIntervalSinceNow.rounded(.up)) }
+            lockUntil = nil
+            failedAttempts = 0
+        }
+        return 0
+    }
+
+    /// 记录一次失败；若触发锁定，返回锁定秒数，否则返回 0。
+    func recordPairFailure() -> Int {
+        failedAttempts += 1
+        if failedAttempts >= maxPairAttempts {
+            lockUntil = Date().addingTimeInterval(TimeInterval(pairLockSeconds))
+            failedAttempts = 0
+            return pairLockSeconds
+        }
+        return 0
+    }
+
+    func recordPairSuccess() {
+        failedAttempts = 0
+        lockUntil = nil
+    }
+
+    /// 断开当前客户端（清除数据后调用，强制重新配对）。
+    func disconnectCurrent() {
+        peer?.close()
     }
 
     func start() {
@@ -45,10 +82,16 @@ final class Server {
     private func accept(_ conn: NWConnection) {
         // 单客户端策略：新连接替换旧连接
         peer?.close()
-        let p = Peer(connection: conn, db: db) { [weak self] name in
-            DispatchQueue.main.async { self?.onPeerChanged?(name) }
-            if name == nil { self?.statCounter = 0 }
-        }
+        let p = Peer(
+            connection: conn,
+            db: db,
+            pairLockRemaining: { [weak self] in self?.pairLockRemaining() ?? 0 },
+            onPairFailure: { [weak self] in self?.recordPairFailure() ?? 0 },
+            onPairSuccess: { [weak self] in self?.recordPairSuccess() },
+            onPeer: { [weak self] name in
+                DispatchQueue.main.async { self?.onPeerChanged?(name) }
+            }
+        )
         p.start()
         peer = p
     }
@@ -58,15 +101,26 @@ final class Server {
 private final class Peer {
     private let conn: NWConnection
     private let db: DB
+    private let pairLockRemaining: () -> Int
+    private let onPairFailure: () -> Int
+    private let onPairSuccess: () -> Void
     private let onPeer: (String?) -> Void
     private var buffer = Data()
     private var paired = false
     private var name: String?
     private var closed = false
 
-    init(connection: NWConnection, db: DB, onPeer: @escaping (String?) -> Void) {
+    init(connection: NWConnection,
+         db: DB,
+         pairLockRemaining: @escaping () -> Int,
+         onPairFailure: @escaping () -> Int,
+         onPairSuccess: @escaping () -> Void,
+         onPeer: @escaping (String?) -> Void) {
         self.conn = connection
         self.db = db
+        self.pairLockRemaining = pairLockRemaining
+        self.onPairFailure = onPairFailure
+        self.onPairSuccess = onPairSuccess
         self.onPeer = onPeer
     }
 
@@ -125,16 +179,24 @@ private final class Peer {
         let type = obj["t"] as? String ?? ""
 
         if type == "hello" {
+            // 防爆破：锁定期间直接拒绝
+            let locked = pairLockRemaining()
+            if locked > 0 {
+                send(["t": "pair-fail", "lock": locked]) { [weak self] in self?.close() }
+                return
+            }
             let code = obj["code"] as? String ?? ""
             name = obj["name"] as? String
             if code == db.pairCode {
                 paired = true
+                onPairSuccess()
                 send(["t": "pair-ok"])
                 db.rememberDevice(id: conn.endpoint.debugDescription, name: name ?? "iPhone")
                 onPeer(name ?? "已连接设备")
             } else {
+                let lock = onPairFailure()
                 // 必须等异步 send 完成后再关闭，否则响应会被取消
-                send(["t": "pair-fail"]) { [weak self] in self?.close() }
+                send(["t": "pair-fail", "lock": lock]) { [weak self] in self?.close() }
             }
             return
         }

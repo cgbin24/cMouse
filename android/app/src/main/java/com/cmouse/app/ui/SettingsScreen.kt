@@ -58,6 +58,7 @@ fun SettingsScreen(
     var lanPort by remember { mutableStateOf(settings.getString(SettingsStore.Keys.LAN_PORT, "8433")) }
     var lanCode by remember { mutableStateOf(settings.getString(SettingsStore.Keys.LAN_CODE)) }
     var gestureDialog by remember { mutableStateOf<String?>(null) }
+    var confirmClear by remember { mutableStateOf(false) }
     var version by remember(status.version) { mutableStateOf(status.version) }
 
     Column(
@@ -211,10 +212,49 @@ fun SettingsScreen(
         // ---- 数据与隐私 ----
         SectionCard(title = "数据与隐私") {
             Text(
-                "所有数据（配置、手势映射、配对设备）仅保存在本机 SQLite（cmouse.db），不采集、不上传。",
+                "所有数据（配置、手势映射、配对设备）仅保存在本机 SQLite（cmouse.db），不采集、不上传。" +
+                    "卸载 App 时系统会自动彻底清除以上全部数据，无需手动清理。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = { confirmClear = true },
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
+            ) { Text("清除所有本地数据") }
+            if (confirmClear) {
+                AlertDialog(
+                    onDismissRequest = { confirmClear = false },
+                    title = { Text("清除所有本地数据？") },
+                    text = {
+                        Text(
+                            "将删除全部配置、手势映射与配对设备记录，并恢复默认设置。" +
+                                "连接状态会断开，需重新配置。"
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            activity.disconnectLan()
+                            activity.stopHid()
+                            settings.resetAll()
+                            mode = "hid"
+                            sensitivity = 1f
+                            scrollSpeed = 1f
+                            pinch = true
+                            lanHost = ""
+                            lanPort = "8433"
+                            lanCode = ""
+                            confirmClear = false
+                            version++
+                        }) { Text("清除") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { confirmClear = false }) { Text("取消") }
+                    }
+                )
+            }
             version // 触发重建以刷新设备列表
             val devices = settings.devices()
             if (devices.isNotEmpty()) {

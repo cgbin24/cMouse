@@ -60,6 +60,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             keyEquivalent: "")
         menu.addItem(ax)
 
+        menu.addItem(NSMenuItem(title: "清除本地数据…", action: #selector(clearAllData), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "卸载清理说明…", action: #selector(showUninstallHelp), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "退出 cMouse", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
 
@@ -74,6 +76,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openAccessibility() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
         NSWorkspace.shared.open(url)
+    }
+
+    /// 一键清除全部本地数据（配对码重新生成，所有手机需重新配对）
+    @objc private func clearAllData() {
+        let alert = NSAlert()
+        alert.messageText = "清除所有本地数据？"
+        alert.informativeText = "将删除配对码、已配对设备记录与使用统计（仅存于本机 SQLite）。配对码会重新生成，所有手机需要重新配对。"
+        alert.addButton(withTitle: "清除")
+        alert.addButton(withTitle: "取消")
+        if alert.runModal() == .alertFirstButtonReturn {
+            server.disconnectCurrent()
+            db.clearAll()
+            refreshMenu()
+        }
+    }
+
+    /// 内置卸载清理说明
+    @objc private func showUninstallHelp() {
+        let alert = NSAlert()
+        alert.messageText = "卸载与彻底清理"
+        alert.informativeText = """
+        1. 菜单栏 ⌖ → 退出 cMouse
+        2. 把"应用程序"中的 cMouse.app 拖入废纸篓
+        3. 删除文件夹：~/Library/Application Support/cMouse/
+           （内含配对码与设备记录的 SQLite）
+        4. 系统设置 → 隐私与安全性 → 辅助功能：
+           选中 cMouse 按减号移除，收回输入授权
+
+        以上完成后即无痕清除，系统无驱动、无服务残留。
+        """
+        alert.addButton(withTitle: "好的")
+        alert.runModal()
     }
 
     private func promptAccessibility() {

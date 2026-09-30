@@ -84,6 +84,15 @@ class SettingsStore(context: Context) :
         onCreate(db)
     }
 
+    /** 一键清除全部本地数据并恢复默认设置（卸载 App 时系统也会自动彻底清除）。 */
+    fun resetAll() {
+        val db = writableDatabase
+        db.execSQL("DELETE FROM settings")
+        db.execSQL("DELETE FROM gestures")
+        db.execSQL("DELETE FROM devices")
+        onCreate(db) // 重新写入默认配置与手势映射
+    }
+
     // ---- settings ----
     fun getString(key: String, def: String = ""): String =
         readableDatabase.rawQuery("SELECT value FROM settings WHERE key=?", arrayOf(key)).use { c ->

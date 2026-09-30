@@ -78,6 +78,9 @@ internal static class Program
         foreach (var ip in Net.LocalIPv4())
             User32.AppendMenuW(_menu, MF_STRING | MF_GRAYED, (nint)3, $"本机地址：{ip}:8433");
         User32.AppendMenuW(_menu, MF_SEPARATOR, nint.Zero, null);
+        User32.AppendMenuW(_menu, MF_STRING, (nint)4, "清除本地数据…");
+        User32.AppendMenuW(_menu, MF_STRING, (nint)5, "卸载清理说明…");
+        User32.AppendMenuW(_menu, MF_SEPARATOR, nint.Zero, null);
         User32.AppendMenuW(_menu, MF_STRING, (nint)9, "退出");
     }
 
@@ -95,12 +98,42 @@ internal static class Program
             case WM_TRAYICON when (uint)(lParam & 0xFFFF) == WM_LBUTTONDOWN:
                 ShowMenu();
                 return 0;
+            case WM_COMMAND when wParam.ToInt64() == 4: // 清除本地数据
+                ClearAllData();
+                return 0;
+            case WM_COMMAND when wParam.ToInt64() == 5: // 卸载清理说明
+                ShowUninstallHelp();
+                return 0;
             case WM_COMMAND when wParam.ToInt64() == 9: // 退出
                 User32.PostQuitMessage(0);
                 return 0;
             default:
                 return User32.DefWindowProcW(hWnd, msg, wParam, lParam);
         }
+    }
+
+    private static void ClearAllData()
+    {
+        const uint MB_OKCANCEL = 0x01, MB_ICONWARNING = 0x30, MB_YESNO = 0x04, IDYES = 6;
+        if (User32.MessageBoxW(_hwnd, "将删除配对码、已配对设备记录（仅存于本机 SQLite）。配对码会重新生成，所有手机需要重新配对。继续？",
+                "清除所有本地数据", MB_OKCANCEL | MB_ICONWARNING) != IDYES)
+            return;
+        _server.DisconnectCurrent();
+        _db.ClearAll();
+        RebuildMenu();
+    }
+
+    private static void ShowUninstallHelp()
+    {
+        const uint MB_OK = 0x00, MB_ICONINFORMATION = 0x40;
+        _ = User32.MessageBoxW(_hwnd,
+            "卸载与彻底清理：\n\n" +
+            "1. 托盘图标右键 → 退出\n" +
+            "2. 删除 cMouse.exe 文件（本程序为单文件，无服务/驱动/自启动）\n" +
+            "3. 删除文件夹 %APPDATA%\\cMouse\\（配对码与设备记录的 SQLite）\n" +
+            "4. 可选：Windows 防火墙 → 入站规则 中移除 cMouse 条目（删除程序后即已失效）\n\n" +
+            "以上完成后即无痕清除。",
+            "卸载清理说明", MB_OK | MB_ICONINFORMATION);
     }
 
     internal delegate nint WndProcDelegate(nint hWnd, uint msg, nint wParam, nint lParam);
@@ -198,4 +231,7 @@ internal static class User32
 
     [DllImport("user32.dll")]
     internal static extern bool SetForegroundWindow(nint hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    internal static extern int MessageBoxW(nint hWnd, string text, string caption, uint type);
 }

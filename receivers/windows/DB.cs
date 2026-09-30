@@ -55,6 +55,14 @@ internal sealed class DB
         cmd.ExecuteNonQuery();
     }
 
+    /// 一键清除全部本地数据（配对码重新生成，所有手机需重新配对）。
+    public void ClearAll()
+    {
+        Exec("DELETE FROM kv");
+        Exec("DELETE FROM devices");
+        _pairCode = null;
+    }
+
     private void Exec(string sql)
     {
         // Microsoft.Data.Sqlite 单条 Command 只执行第一条语句，必须拆分

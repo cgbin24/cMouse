@@ -73,6 +73,14 @@ final class DB {
         set("pair_code", code)
         return code
     }
+
+    /// 一键清除全部本地数据（配对码、已配对设备、统计）。
+    /// 清除后配对码将重新生成，所有手机需要重新配对。
+    func clearAll() {
+        exec("DELETE FROM kv;")
+        exec("DELETE FROM devices;")
+        exec("DELETE FROM stats;")
+    }
 }
 
 private extension DateFormatter {
