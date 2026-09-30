@@ -89,7 +89,7 @@ fun TrackpadScreen(
     val connected = if (lanMode) status.lanState == LanClient.State.READY
     else (status.hidRegistered && status.hostName != null)
     var showConnection by remember { mutableStateOf(false) }
-    var showControls by remember { mutableStateOf(true) }
+    var showControls by remember { mutableStateOf(false) }
 
     Column(
         modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
