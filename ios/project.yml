@@ -1,0 +1,28 @@
+# xcodegen 工程描述：CI 上用它生成 cMouse.xcodeproj（也可本地 xcodegen generate 后用 Xcode 打开）
+name: cMouse
+options:
+  bundleIdPrefix: com.cmouse
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+targets:
+  cMouse:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: cMouse
+        UILaunchScreen: {}
+        NSLocalNetworkUsageDescription: 用于连接同一局域网内电脑端的 cMouse 触控板接收端
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+schemes:
+  cMouse:
+    build:
+      targets:
+        cMouse: all
+    run:
+      config: Debug

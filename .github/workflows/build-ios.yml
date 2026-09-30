@@ -1,0 +1,65 @@
+# 云端构建 iOS 客户端。
+# 苹果平台限制（如实说明）：无法产生"可直接安装"的签名包。本工作流产出一份
+# 未签名 IPA（供 Sideloadly / AltStore 用免费 Apple ID 侧载，7 天有效）
+# 和一份现成的 Xcode 工程（可用免费 Apple ID 真机运行）。
+name: build-ios
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  ipa:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 xcodegen（仅 CI 云端环境，与本机无关）
+        run: brew install xcodegen
+
+      - name: 生成 Xcode 工程
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: 编译（免签名，iOS 15+）
+        working-directory: ios
+        run: |
+          xcodebuild -project cMouse.xcodeproj -scheme cMouse -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+
+      - name: 打包未签名 IPA 与校验值
+        run: |
+          mkdir -p Payload dist
+          cp -R ios/build/Build/Products/Release-iphoneos/cMouse.app Payload/
+          zip -qry cMouse-unsigned-ios.ipa Payload
+          cp cMouse-unsigned-ios.ipa dist/
+          shasum -a 256 dist/cMouse-unsigned-ios.ipa | tee dist/SHA256SUMS.txt
+
+      - name: 打包现成 Xcode 工程（供 Xcode 签名真机运行）
+        run: |
+          zip -qry cMouse-xcode-project.zip ios/cMouse.xcodeproj ios/project.yml ios/Sources
+          mkdir -p dist
+          mv cMouse-xcode-project.zip dist/
+
+      - name: 构建产物（Actions 运行页 Artifacts）
+        uses: actions/upload-artifact@v4
+        with:
+          name: cMouse-ios
+          path: |
+            dist/cMouse-unsigned-ios.ipa
+            dist/cMouse-xcode-project.zip
+            dist/SHA256SUMS.txt
+
+      - name: 发布到 Releases（仅当推送 v* 标签）
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/cMouse-unsigned-ios.ipa
+            dist/SHA256SUMS.txt

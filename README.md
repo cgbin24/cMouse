@@ -68,14 +68,34 @@ cMouse/
 | macOS 接收端 | macOS 11 Big Sur | Universal 2 二进制（Intel + Apple Silicon） |
 | Windows 接收端 | Windows 10 | .NET 8 运行时的最低要求；如需支持 Win7 需另出 .NET Framework 4.8 变体 |
 
-## 安装包（当前状态）
+## 安装包（当前状态，全部由 CI 自动产出）
 
-| 安装包 | 状态 | 获取方式 |
-|--------|------|----------|
-| **macOS 接收端 .pkg** | ✅ 已打包，双击即装（97 KB，装到 /Applications） | `receivers/macos/cMouse-Receiver-macOS-1.0.0.pkg` |
-| **Android APK** | 需云端/本机构建后即装 | 见下文"获取 APK" |
-| **Windows 接收端 exe** | 需云端/本机构建后即用 | GitHub Actions 或 `dotnet publish` |
-| **iOS** | iOS 无侧载安装包（苹果限制），需 Xcode 免费签名真机运行 | 见 [ios/README.md](ios/README.md) |
+推送 `v*` 标签后，以下产物自动发布到 Releases 页（每次普通 push 也会在 Actions 运行页的
+Artifacts 生成同样内容）：
+
+| Releases 中的产物 | 平台 | 说明 |
+|-------------------|------|------|
+| `cMouse-debug.apk` | Android 6.0+ | 蓝牙免安装模式需 Android 9+；Debug 签名可直接安装 |
+| `cMouse-Receiver-macOS.pkg` | macOS 11+（Intel/Apple Silicon） | 双击安装到"应用程序"，菜单栏出现 ⌖ 图标；无 .dmg——.pkg 即安装器 |
+| `cMouse-receiver-win-x64.exe` | Windows 10+ | 单文件，托盘运行，无需管理员 |
+| `cMouse-unsigned-ios.ipa` | iOS 15+ | **未签名**IPA，需 Sideloadly/AltStore 侧载（见下文 iOS 安装说明） |
+| 各产物 `SHA256SUMS.txt` | — | 校验下载完整性 |
+
+### iOS 安装说明（苹果平台限制，如实告知）
+
+苹果不允许未签名应用直接安装，因此**不存在可双击安装的 iOS 安装包**（这与 Android 完全不同）。
+三条可选路径，从易到难：
+
+1. **Sideloadly / AltStore 侧载（推荐，免费）**：
+   Releases 下载 `cMouse-unsigned-ios.ipa` → 电脑安装 [Sideloadly](https://sideloadly.io) 或
+   [AltStore](https://altstore.io) → 数据线连接 iPhone → 拖入 IPA → 输入免费 Apple ID 签名安装。
+   签名 7 天有效，到期重签即可（AltStore 可自动续签）。
+2. **Xcode 真机运行（免费，最标准）**：Actions Artifacts 下载 `cMouse-xcode-project.zip`（内含生成好的
+   Xcode 工程）→ 解压后用 Xcode 打开 → Signing & Capabilities 选你的 Apple ID 团队 → 插上 iPhone → Run。
+3. **TestFlight（需付费开发者账号 $99/年）**：适合长期分发给多人使用。
+
+> 为什么 iPhone 必须这么麻烦？苹果不给 App 提供"蓝牙 HID 设备角色"API，也不允许未签名侧载——
+> 这是平台硬性限制（详见 docs/feasibility.md）。iPhone 因此走 Wi-Fi 接收端模式，电脑端需运行接收端。
 
 ### 获取 APK（三选一）
 

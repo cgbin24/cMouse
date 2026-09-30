@@ -1,0 +1,54 @@
+# 云端构建 macOS 接收端：Universal 2（Intel + Apple Silicon），.pkg 双击安装到 /Applications
+# 无驱动；首次使用需在 系统设置 → 隐私与安全性 → 辅助功能 中勾选
+name: build-macos
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  pkg:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 编译 Universal 2 接收端（部署目标 macOS 11）
+        working-directory: receivers/macos
+        run: |
+          mkdir -p payload/cMouse.app/Contents/MacOS
+          swiftc -O -swift-version 5 -target arm64-apple-macos11.0 DB.swift Injector.swift Server.swift AppDelegate.swift main.swift -o /tmp/cmouse-arm64
+          swiftc -O -swift-version 5 -target x86_64-apple-macos11.0 DB.swift Injector.swift Server.swift AppDelegate.swift main.swift -o /tmp/cmouse-x86_64
+          lipo -create /tmp/cmouse-arm64 /tmp/cmouse-x86_64 -output payload/cMouse.app/Contents/MacOS/cmouse-receiver
+          lipo -info payload/cMouse.app/Contents/MacOS/cmouse-receiver
+          cp Info.plist payload/cMouse.app/Contents/Info.plist
+          codesign --force -s - payload/cMouse.app
+
+      - name: 打包 .pkg 与校验值
+        working-directory: receivers/macos
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          pkgbuild --root payload --identifier com.cmouse.receiver --version "$VERSION" --install-location /Applications cMouse-Receiver-macOS.pkg
+          mkdir -p dist
+          cp cMouse-Receiver-macOS.pkg dist/
+          shasum -a 256 dist/cMouse-Receiver-macOS.pkg | tee dist/SHA256SUMS.txt
+
+      - name: 构建产物（Actions 运行页 Artifacts）
+        uses: actions/upload-artifact@v4
+        with:
+          name: cMouse-receiver-macos
+          path: |
+            receivers/macos/dist/cMouse-Receiver-macOS.pkg
+            receivers/macos/dist/SHA256SUMS.txt
+
+      - name: 发布到 Releases（仅当推送 v* 标签）
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            receivers/macos/dist/cMouse-Receiver-macOS.pkg
+            receivers/macos/dist/SHA256SUMS.txt
