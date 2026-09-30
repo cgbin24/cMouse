@@ -29,6 +29,11 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -69,14 +74,15 @@ fun SettingsScreen(
 
         // ---- 连接模式 ----
         SectionCard(title = "连接模式") {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 FilterChip(
                     selected = mode == "hid",
                     onClick = {
                         mode = "hid"; settings.putString(SettingsStore.Keys.MODE, "hid")
                         activity.stopHid(); activity.disconnectLan()
                     },
-                    label = { Text("蓝牙直连（电脑免安装）") }
+                    label = { Text("蓝牙直连（电脑免安装）") },
+                    modifier = Modifier.fillMaxWidth()
                 )
                 FilterChip(
                     selected = mode == "lan",
@@ -84,7 +90,8 @@ fun SettingsScreen(
                         mode = "lan"; settings.putString(SettingsStore.Keys.MODE, "lan")
                         activity.stopHid()
                     },
-                    label = { Text("Wi-Fi 接收端") }
+                    label = { Text("Wi-Fi 接收端") },
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
             Spacer(Modifier.height(4.dp))
@@ -358,20 +365,32 @@ private fun SettingSlider(
 
 @Composable
 private fun SectionCard(title: String, content: @Composable () -> Unit) {
+    var expanded by remember { mutableStateOf(true) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(Modifier.padding(16.dp)) {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.height(10.dp))
-            content()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    title,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(
+                        if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                        contentDescription = if (expanded) "收起$title" else "展开$title"
+                    )
+                }
+            }
+            if (expanded) {
+                Spacer(Modifier.height(10.dp))
+                content()
+            }
         }
     }
 }

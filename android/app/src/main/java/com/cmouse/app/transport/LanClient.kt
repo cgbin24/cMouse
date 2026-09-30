@@ -28,12 +28,14 @@ class LanClient(
     enum class State { CONNECTING, PAIRING, READY, ERROR, CLOSED }
 
     private val running = AtomicBoolean(false)
+    private val paired = AtomicBoolean(false)
     private var socket: Socket? = null
     private var writer: BufferedWriter? = null
     private val sendLock = Any()
 
     fun start(pairCode: String) {
         if (!running.compareAndSet(false, true)) return
+        paired.set(false)
         Thread({
             try {
                 listener.onState(State.CONNECTING)
@@ -51,8 +53,12 @@ class LanClient(
                             val line = reader.readLine() ?: break
                             val json = JSONObject(line)
                             when (json.optString("t")) {
-                                "pair-ok" -> listener.onState(State.READY)
+                                "pair-ok" -> {
+                                    paired.set(true)
+                                    listener.onState(State.READY)
+                                }
                                 "pair-fail" -> {
+                                    paired.set(false)
                                     val lock = json.optInt("lock", 0)
                                     listener.onState(
                                         State.ERROR,
@@ -66,6 +72,7 @@ class LanClient(
                     }
                     if (running.get()) {
                         running.set(false)
+                        paired.set(false)
                         listener.onState(State.CLOSED, "连接已断开")
                     }
                 }, "cmouse-recv").start()
@@ -77,9 +84,10 @@ class LanClient(
                     put("name", deviceName)
                     put("code", pairCode)
                     put("proto", 1)
-                })
+                }, requirePair = false)
             } catch (e: Exception) {
                 running.set(false)
+                paired.set(false)
                 listener.onState(State.ERROR, "连接失败：${e.message ?: e.javaClass.simpleName}")
             }
         }, "cmouse-lan").start()
@@ -87,6 +95,7 @@ class LanClient(
 
     fun stop() {
         if (!running.compareAndSet(true, false)) return
+        paired.set(false)
         try {
             socket?.close()
         } catch (_: Exception) {
@@ -94,10 +103,10 @@ class LanClient(
         listener.onState(State.CLOSED)
     }
 
-    val isReady: Boolean get() = running.get() && socket?.isConnected == true
+    val isReady: Boolean get() = running.get() && paired.get()
 
-    fun send(json: JSONObject) {
-        if (!isReady) return
+    private fun send(json: JSONObject, requirePair: Boolean = true) {
+        if (!running.get() || (requirePair && !paired.get())) return
         synchronized(sendLock) {
             try {
                 writer?.write(json.toString())

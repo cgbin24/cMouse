@@ -39,7 +39,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
         fun zoom(zoomPct: Float)
         fun swipe(fingers: Int, dir: SwipeDir)
         fun haptic()
-        fun momentumTick(dy: Float)
+        fun momentumTick(dx: Float, dy: Float)
         fun direction(dir: SwipeDir?)
     }
 
@@ -54,6 +54,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
     private var downTime = 0L
     private var lastTapTime = 0L
     private var lastTapX = 0f; private var lastTapY = 0f
+    private var pendingSingleTap = false
     private var twoFingerTapStart = 0L
     private var twoFingerMoved = false
 
@@ -74,9 +75,10 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
     private val momentumRunnable = object : Runnable {
         override fun run() {
             if (mode != Mode.SCROLL_MOMENTUM) return
+            val dxTicks = momentumVx / 1000f * (1f / 60f) / cfg.scrollStepPx
             val dyTicks = momentumVy / 1000f * (1f / 60f) / cfg.scrollStepPx
-            if (abs(dyTicks) > 0.02f) {
-                sink.momentumTick(dyTicks)
+            if (abs(dxTicks) > 0.02f || abs(dyTicks) > 0.02f) {
+                sink.momentumTick(dxTicks, dyTicks)
                 momentumVy *= 0.9f
                 momentumVx *= 0.9f
                 handler.postDelayed(this, 16)
@@ -91,6 +93,13 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
             mode = Mode.DRAG
             sink.haptic()
             sink.buttonDown(InputDispatcher.BUTTON_LEFT)
+        }
+    }
+
+    private val singleTapRunnable = Runnable {
+        if (pendingSingleTap) {
+            pendingSingleTap = false
+            sink.click(InputDispatcher.BUTTON_LEFT, false)
         }
     }
 
@@ -111,7 +120,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
         mode = Mode.ONE
         downX = e.x; downY = e.y
         lastX = e.x; lastY = e.y
-        downTime = e.downTime
+        downTime = e.eventTime
         velocity?.clear()
         velocity = VelocityTracker.obtain()
         velocity?.addMovement(e)
@@ -125,7 +134,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
                 if (mode == Mode.DRAG) return // 拖拽中忽略新手指
                 handler.removeCallbacks(longPressRunnable)
                 mode = Mode.TWO
-                twoFingerTapStart = System.currentTimeMillis()
+                twoFingerTapStart = e.eventTime
                 twoFingerMoved = false
                 twoInitX = (e.getX(0) + e.getX(1)) / 2f
                 twoInitY = (e.getY(0) + e.getY(1)) / 2f
@@ -218,14 +227,21 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
 
     private fun onTouchUp(e: MotionEvent) {
         handler.removeCallbacks(longPressRunnable)
-        val elapsed = System.currentTimeMillis() - downTime
+        val elapsed = e.eventTime - downTime
         when (mode) {
             Mode.ONE -> {
                 if (elapsed <= cfg.tapTimeoutMs && dist(downX, downY, e.x, e.y) < cfg.slop) {
-                    val now = System.currentTimeMillis()
+                    val now = e.eventTime
                     val isDouble = now - lastTapTime < cfg.doubleTapMs &&
                         dist(lastTapX, lastTapY, e.x, e.y) < cfg.slop * 2
-                    sink.click(InputDispatcher.BUTTON_LEFT, isDouble)
+                    if (isDouble) {
+                        handler.removeCallbacks(singleTapRunnable)
+                        pendingSingleTap = false
+                        sink.click(InputDispatcher.BUTTON_LEFT, true)
+                    } else {
+                        pendingSingleTap = true
+                        handler.postDelayed(singleTapRunnable, cfg.doubleTapMs)
+                    }
                     lastTapTime = now
                     lastTapX = e.x; lastTapY = e.y
                 }
@@ -234,16 +250,18 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
                 sink.buttonUp(InputDispatcher.BUTTON_LEFT)
             }
             Mode.TWO -> {
-                val tapOk = System.currentTimeMillis() - twoFingerTapStart < cfg.tapTimeoutMs + 60 &&
-                    !twoFingerMoved
+                val tapOk = e.eventTime - twoFingerTapStart < cfg.tapTimeoutMs + 60 &&
+                    !twoFingerMoved && !pinchMode
                 if (tapOk) {
                     sink.click(InputDispatcher.BUTTON_RIGHT, false)
                 } else {
                     // 结束滚动，启动惯性
-                    velocity?.computeCurrentVelocity(1000)
-                    momentumVy = velocity?.yVelocity ?: 0f
-                    momentumVx = velocity?.xVelocity ?: 0f
-                    if (abs(momentumVy) + abs(momentumVx) > 300f) {
+                    if (!pinchMode) {
+                        velocity?.computeCurrentVelocity(1000)
+                        momentumVy = velocity?.yVelocity ?: 0f
+                        momentumVx = velocity?.xVelocity ?: 0f
+                    }
+                    if (!pinchMode && abs(momentumVy) + abs(momentumVx) > 300f) {
                         mode = Mode.SCROLL_MOMENTUM
                         handler.post(momentumRunnable)
                     }
@@ -279,6 +297,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
 
     fun reset() {
         handler.removeCallbacks(longPressRunnable)
+        handler.removeCallbacks(singleTapRunnable)
         stopMomentum()
         velocity?.recycle()
         velocity = null

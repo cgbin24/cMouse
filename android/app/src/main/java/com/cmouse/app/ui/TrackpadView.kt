@@ -34,7 +34,7 @@ class TrackpadView(
         override fun buttonDown(button: Int) = dispatcher.button(button, true)
         override fun buttonUp(button: Int) = dispatcher.button(button, false)
         override fun scroll(dx: Float, dy: Float) = dispatcher.scroll(dx, dy)
-        override fun momentumTick(dy: Float) = dispatcher.scroll(0f, dy)
+        override fun momentumTick(dx: Float, dy: Float) = dispatcher.scroll(dx, dy)
         override fun zoom(zoomPct: Float) = dispatcher.zoom(zoomPct)
         override fun swipe(fingers: Int, dir: SwipeDir) = dispatcher.swipe(fingers, dir)
         override fun haptic() {

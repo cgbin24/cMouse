@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
@@ -257,13 +258,21 @@ class MainActivity : ComponentActivity() {
         var tab by mutableStateOf(Tab.TRACKPAD)
         Scaffold(
             bottomBar = {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    tonalElevation = 0.dp
+                ) {
                     Tab.entries.forEach { t ->
                         NavigationBarItem(
                             selected = tab == t,
                             onClick = { tab = t },
                             icon = { Icon(t.icon, contentDescription = t.label) },
-                            label = { Text(t.label) }
+                            label = { Text(t.label) },
+                            colors = NavigationBarItemDefaults.colors(
+                                indicatorColor = MaterialTheme.colorScheme.surfaceVariant,
+                                selectedIconColor = Accent,
+                                selectedTextColor = Accent
+                            )
                         )
                     }
                 }

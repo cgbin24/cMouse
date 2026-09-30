@@ -23,16 +23,23 @@ class InputDispatcher(private val settings: SettingsStore) {
     private var wheelAccY = 0f
     private var wheelAccX = 0f
     private var zoomAcc = 0f
+    private var moveAccX = 0f
+    private var moveAccY = 0f
 
     val isReady: Boolean
         get() = if (lanMode) lanProvider?.invoke()?.isReady == true
         else hidProvider?.invoke()?.isReady == true
 
     fun move(dx: Float, dy: Float) {
-        val x = dx * sensitivity
-        val y = dy * sensitivity
-        if (lanMode) lanProvider?.invoke()?.move(x, y)
-        else hidProvider?.invoke()?.sendMouse(0, x.toInt(), y.toInt(), 0, 0)
+        moveAccX += dx * sensitivity
+        moveAccY += dy * sensitivity
+        val x = moveAccX.toInt()
+        val y = moveAccY.toInt()
+        if (x == 0 && y == 0) return
+        moveAccX -= x
+        moveAccY -= y
+        if (lanMode) lanProvider?.invoke()?.move(x.toFloat(), y.toFloat())
+        else hidProvider?.invoke()?.sendMouse(0, x, y, 0, 0)
     }
 
     fun click(button: Int, double: Boolean) {
