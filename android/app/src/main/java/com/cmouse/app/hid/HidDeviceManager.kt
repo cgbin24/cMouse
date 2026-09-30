@@ -51,10 +51,13 @@ class HidDeviceManager(
                 )
                 h.registerApp(sdp, null, null, executor, hidCallback)
             } catch (e: SecurityException) {
-                listener.onError("缺少蓝牙权限：${e.message}")
+                listener.onError("缺少蓝牙权限：请在系统设置中允许 cMouse \"附近设备\"权限后重试")
                 false
             } catch (e: Exception) {
-                listener.onError("HID 注册失败（部分机型系统限制）：${e.message}")
+                listener.onError(
+                    "HID 注册失败：${e.message ?: e.javaClass.simpleName}。" +
+                        "部分系统（HarmonyOS/EMUI、企业管控 ROM）限制虚拟输入设备，请改用 Wi-Fi 接收端模式"
+                )
                 false
             }
             listener.onRegistered(registered)
@@ -100,15 +103,19 @@ class HidDeviceManager(
             listener.onError("蓝牙直连模式需要 Android 9.0 以上，请改用 Wi-Fi 接收端模式")
             return
         }
-        val a = adapter ?: run {
-            listener.onError("设备不支持蓝牙")
-            return
+        try {
+            val a = adapter ?: run {
+                listener.onError("设备不支持蓝牙")
+                return
+            }
+            if (!a.isEnabled) {
+                listener.onError("请先打开手机蓝牙，再点\"开始连接\"")
+                return
+            }
+            a.getProfileProxy(appContext, profileListener, BluetoothProfile.HID_DEVICE)
+        } catch (e: SecurityException) {
+            listener.onError("缺少蓝牙权限：请在系统设置中允许 cMouse \"附近设备\"权限后重试")
         }
-        if (!a.isEnabled) {
-            listener.onError("请先打开蓝牙")
-            return
-        }
-        a.getProfileProxy(appContext, profileListener, BluetoothProfile.HID_DEVICE)
     }
 
     fun stop() {

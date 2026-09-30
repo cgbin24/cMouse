@@ -82,6 +82,7 @@ fun TrackpadScreen(
                             "已连接接收端 ${status.hostName ?: ""}"
                         lanMode && status.lanMsg.isNotEmpty() -> status.lanMsg
                         lanMode -> "Wi-Fi 模式：未连接"
+                        status.hidMsg.isNotEmpty() -> status.hidMsg
                         !status.hidRegistered -> "蓝牙模式：未注册"
                         else -> "已配对：${status.hostName ?: ""}"
                     },

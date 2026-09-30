@@ -53,12 +53,14 @@ class MainActivity : ComponentActivity() {
     // UI 状态
     private var hidRegistered by mutableStateOf(false)
     private var hostName by mutableStateOf<String?>(null)
+    private var hidMsg by mutableStateOf("")
     private var lanState by mutableStateOf(LanClient.State.CLOSED)
     private var lanMsg by mutableStateOf("")
     private var statusVersion by mutableStateOf(0) // 触发设置页设备列表刷新
 
     private val statusRelay = object : HidDeviceManager.Listener {
         override fun onRegistered(registered: Boolean) {
+            if (registered) hidMsg = ""
             hidRegistered = registered
             statusVersion++
         }
@@ -69,7 +71,7 @@ class MainActivity : ComponentActivity() {
         }
 
         override fun onError(message: String) {
-            lanMsg = message
+            hidMsg = message
         }
     }
 
@@ -77,6 +79,8 @@ class MainActivity : ComponentActivity() {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             hidService = (service as HidService.LocalBinder).service
             hidService?.statusListener = statusRelay
+            // 服务可能先于绑定运行并产生错误，此处补发
+            hidService?.lastError?.let { statusRelay.onError(it) }
             hidRegistered = hidService?.hid?.isRegistered ?: false
         }
 
@@ -86,7 +90,24 @@ class MainActivity : ComponentActivity() {
     }
 
     private val permissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+            if (grants.values.all { it }) doStartHid()
+            else hidMsg = "蓝牙权限被拒绝，无法注册触控板设备"
+        }
+
+    private fun missingPermissions(): List<String> {
+        val wanted = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED)
+                wanted += Manifest.permission.BLUETOOTH_CONNECT
+            if (checkSelfPermission(Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED)
+                wanted += Manifest.permission.BLUETOOTH_ADVERTISE
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) wanted += Manifest.permission.POST_NOTIFICATIONS
+        return wanted
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -94,7 +115,6 @@ class MainActivity : ComponentActivity() {
         dispatcher = InputDispatcher(settings)
         dispatcher.hidProvider = { hidService?.hid }
         dispatcher.lanProvider = { lanClient }
-        requestNeededPermissions()
         setContent {
             CMouseTheme {
                 MainScaffold()
@@ -102,20 +122,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun requestNeededPermissions() {
-        val wanted = mutableListOf<String>()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
-        ) wanted += Manifest.permission.BLUETOOTH_CONNECT
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) wanted += Manifest.permission.POST_NOTIFICATIONS
-        if (wanted.isNotEmpty()) permissionLauncher.launch(wanted.toTypedArray())
+    /**
+     * 启动 HID：先确保权限齐备（授权回调里继续），再启动前台服务并请求"可被发现"。
+     * 旧实现里授权是异步的而服务立即启动，registerApp 会因权限不足失败。
+     */
+    fun startHid() {
+        val missing = missingPermissions()
+        if (missing.isNotEmpty()) {
+            permissionLauncher.launch(missing.toTypedArray())
+            return
+        }
+        doStartHid()
     }
 
-    /** 启动 HID 前台服务并绑定（注册手机为蓝牙键鼠设备）。 */
-    fun startHid() {
-        requestNeededPermissions()
+    private fun doStartHid() {
         val intent = Intent(this, HidService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
         else startService(intent)
@@ -123,7 +143,7 @@ class MainActivity : ComponentActivity() {
             bindService(intent, conn, Context.BIND_AUTO_CREATE)
             hidBound = true
         }
-        // 注册后手机需处于可被发现状态，电脑才能完成配对
+        // 注册后手机需处于可被发现状态，电脑才能在蓝牙设置中看到它
         val adapter = getSystemService(BluetoothManager::class.java)?.adapter
         if (adapter != null && adapter.isEnabled &&
             adapter.scanMode != BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE
@@ -208,6 +228,7 @@ class MainActivity : ComponentActivity() {
                 val status = ConnectionStatus(
                     hidRegistered = hidRegistered,
                     hostName = hostName,
+                    hidMsg = hidMsg,
                     lanState = lanState,
                     lanMsg = lanMsg,
                     version = statusVersion
@@ -242,6 +263,7 @@ class MainActivity : ComponentActivity() {
 data class ConnectionStatus(
     val hidRegistered: Boolean,
     val hostName: String?,
+    val hidMsg: String,
     val lanState: LanClient.State,
     val lanMsg: String,
     val version: Int

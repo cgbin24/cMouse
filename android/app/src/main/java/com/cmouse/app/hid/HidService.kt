@@ -29,6 +29,7 @@ class HidService : Service() {
         startForegroundNotification()
         hid = HidDeviceManager(applicationContext, object : HidDeviceManager.Listener {
             override fun onRegistered(registered: Boolean) {
+                if (registered) lastError = null
                 statusListener?.onRegistered(registered)
             }
 
@@ -37,6 +38,8 @@ class HidService : Service() {
             }
 
             override fun onError(message: String) {
+                // 绑定发生前产生的错误先缓存，绑定后由 Activity 补发
+                lastError = message
                 statusListener?.onError(message)
             }
         })
@@ -54,6 +57,10 @@ class HidService : Service() {
     override fun onBind(intent: Intent?): IBinder = binder
 
     var statusListener: HidDeviceManager.Listener? = null
+
+    /** 绑定前产生的最后一次错误，绑定后补发。 */
+    var lastError: String? = null
+        private set
 
     private fun startForegroundNotification() {
         val nm = getSystemService(NotificationManager::class.java)

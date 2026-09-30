@@ -123,10 +123,18 @@ fun SettingsScreen(
                     Button(onClick = { activity.startHid() }) { Text("启动并等待配对") }
                     OutlinedButton(onClick = { activity.stopHid() }) { Text("停止") }
                 }
+                if (status.hidMsg.isNotEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        status.hidMsg,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "配对步骤：点\"启动\"后，在电脑的蓝牙设置中找到名为 cMouse Trackpad 的设备并配对。" +
-                        "首次启动会请求蓝牙权限与\"可被发现\"。",
+                    "配对步骤：点\"启动\"后，在弹窗中允许手机\"对附近蓝牙设备可见\"，" +
+                        "再到电脑蓝牙设置中找到 cMouse Trackpad 并配对。首次启动会请求蓝牙权限。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

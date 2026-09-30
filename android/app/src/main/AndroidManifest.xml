@@ -4,6 +4,8 @@
     <!-- 蓝牙：HID 设备角色注册与连接 -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Android 12+ 请求"对其他蓝牙设备可见"需要 -->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <!-- 模式 B：局域网直连接收端 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
