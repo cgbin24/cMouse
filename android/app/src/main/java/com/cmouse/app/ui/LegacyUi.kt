@@ -85,7 +85,86 @@ fun showLegacySettingsDialog(
         setPadding(dpF(ctx, 22), dpF(ctx, 8), dpF(ctx, 22), dpF(ctx, 4))
     }
 
+    // ---- 连接模式 ----
     box.addView(legacyLabel(ctx, "连接模式（当前：${if (mode == "hid") "蓝牙直连" else "Wi-Fi 接收端"}）"))
+    box.addView(legacyRow(ctx,
+        legacyButton(ctx, "蓝牙直连") {
+            settings.putString(SettingsStore.Keys.MODE, "hid")
+            activity.stopHid(); activity.disconnectLan(); mode = "hid"
+            padUi?.statusPill?.text = padStatusText(activity.currentStatus(), settings, padUi.versionName)
+            Toast.makeText(ctx, "已切换为蓝牙直连模式（电脑端零安装）", Toast.LENGTH_SHORT).show()
+        },
+        legacyButton(ctx, "Wi-Fi 接收端") {
+            settings.putString(SettingsStore.Keys.MODE, "lan")
+            activity.stopHid(); mode = "lan"
+            padUi?.statusPill?.text = padStatusText(activity.currentStatus(), settings, padUi.versionName)
+            Toast.makeText(ctx, "已切换为 Wi-Fi 接收端模式", Toast.LENGTH_SHORT).show()
+        }
+    ))
+
+    // ---- 蓝牙连接 ----
+    box.addView(legacyLabel(ctx, "蓝牙：启动后在电脑蓝牙设置中配对 cMouse Trackpad（需 Android 9+）"))
+    box.addView(legacyRow(ctx,
+        legacyButton(ctx, "启动并等待配对") {
+            activity.startHid(); activity.refreshLegacyStatus()
+        },
+        legacyButton(ctx, "停止") {
+            activity.stopHid(); activity.refreshLegacyStatus()
+        }
+    ))
+    if (activity.currentStatus().hidMsg.isNotEmpty()) {
+        box.addView(TextView(ctx).apply {
+            text = activity.currentStatus().hidMsg
+            textSize = 13f
+            setTextColor(0xFFD93025.toInt())
+            setPadding(0, dpF(ctx, 2), 0, dpF(ctx, 2))
+        })
+    }
+
+    // ---- 接收端连接 ----
+    box.addView(legacyLabel(ctx, "Wi-Fi：填电脑端接收端显示的 IP / 端口 / 配对码"))
+    val hostEdit = legacyEdit(ctx, "电脑 IP").apply { setText(settings.getString(SettingsStore.Keys.LAN_HOST)) }
+    val portEdit = legacyEdit(ctx, "端口", InputType.TYPE_CLASS_NUMBER).apply {
+        setText(settings.getString(SettingsStore.Keys.LAN_PORT, "8433"))
+    }
+    val codeEdit = legacyEdit(ctx, "配对码", InputType.TYPE_CLASS_NUMBER).apply {
+        setText(settings.getString(SettingsStore.Keys.LAN_CODE))
+    }
+    box.addView(legacyRow(ctx, hostEdit, portEdit))
+    box.addView(codeEdit)
+    box.addView(legacyRow(ctx,
+        legacyButton(ctx, "连接") {
+            settings.putString(SettingsStore.Keys.LAN_HOST, hostEdit.text.toString().trim())
+            settings.putString(SettingsStore.Keys.LAN_PORT, portEdit.text.toString().ifEmpty { "8433" })
+            settings.putString(SettingsStore.Keys.LAN_CODE, codeEdit.text.toString().trim())
+            activity.connectLan(hostEdit.text.toString().trim(),
+                portEdit.text.toString().toIntOrNull() ?: 8433, codeEdit.text.toString().trim())
+        },
+        legacyButton(ctx, "断开") { activity.disconnectLan() }
+    ))
+
+    // ---- 触控手感 ----
+    box.addView(legacyLabel(ctx, "触控手感"))
+    val sensValues = floatArrayOf(0.5f, 0.75f, 1f, 1.5f, 2f, 3f)
+    var sensIdx = sensValues.indexOfFirst { it >= settings.getFloat(SettingsStore.Keys.SENSITIVITY, 1f) - 0.01f }
+        .coerceAtLeast(0)
+    val sensBtn = legacyButton(ctx, "光标灵敏度：${sensValues[sensIdx]}×") { }
+    sensBtn.setOnClickListener {
+        sensIdx = (sensIdx + 1) % sensValues.size
+        settings.putFloat(SettingsStore.Keys.SENSITIVITY, sensValues[sensIdx])
+        sensBtn.text = "光标灵敏度：${sensValues[sensIdx]}×"
+    }
+    box.addView(sensBtn)
+    val scrollValues = floatArrayOf(0.3f, 0.5f, 1f, 1.5f, 2f, 3f)
+    var scrollIdx = scrollValues.indexOfFirst { it >= settings.getFloat(SettingsStore.Keys.SCROLL_SPEED, 1f) - 0.01f }
+        .coerceAtLeast(0)
+    val scrollBtn = legacyButton(ctx, "滚动速度：${scrollValues[scrollIdx]}×") { }
+    scrollBtn.setOnClickListener {
+        scrollIdx = (scrollIdx + 1) % scrollValues.size
+        settings.putFloat(SettingsStore.Keys.SCROLL_SPEED, scrollValues[scrollIdx])
+        scrollBtn.text = "滚动速度：${scrollValues[scrollIdx]}×"
+    }
+    box.addView(scrollBtn)
     val naturalBtn = legacyButton(ctx,
         "自然滚动：${if (settings.getBool(SettingsStore.Keys.NATURAL_SCROLL, true)) "开" else "关"}") { }
     naturalBtn.setOnClickListener {
@@ -102,7 +181,60 @@ fun showLegacySettingsDialog(
     }
     box.addView(legacyRow(ctx, naturalBtn, pinchBtn))
 
-    box.addView(legacyLabel(ctx, "数据"))
+    // ---- 三指滑动自定义映射 ----
+    box.addView(legacyLabel(ctx, "三指滑动（点按切换动作）"))
+    val gestureOptions = listOf(
+        "无动作" to "", "调度中心/任务视图" to "ctrl+up", "应用窗口切换" to "ctrl+left",
+        "显示桌面" to "win+d", "启动台/开始菜单" to "win", "锁屏" to "cmd+ctrl+q"
+    )
+    fun gestureButtonText(gesture: String): String {
+        val act = settings.gestureAction(gesture)
+        val combo = act?.second ?: ""
+        val name = gestureOptions.firstOrNull { it.second == combo }?.first
+            ?: if (act == null || act.first == "none") "无动作" else combo
+        return name
+    }
+    fun gestureButton(gesture: String, label: String): Button {
+        val btn = legacyButton(ctx, "$label：${gestureButtonText(gesture)}") { }
+        btn.setOnClickListener {
+            val current = settings.gestureAction(gesture)?.second ?: ""
+            val idx = gestureOptions.indexOfFirst { it.second == current }.let { if (it < 0) 0 else it }
+            val next = gestureOptions[(idx + 1) % gestureOptions.size]
+            if (next.second.isEmpty()) settings.setGestureAction(gesture, "none", "")
+            else settings.setGestureAction(gesture, "combo", next.second)
+            btn.text = "$label：${next.first}"
+        }
+        return btn
+    }
+    box.addView(gestureButton("three_up", "上滑"))
+    box.addView(gestureButton("three_down", "下滑"))
+    box.addView(gestureButton("three_left", "左滑"))
+    box.addView(gestureButton("three_right", "右滑"))
+    box.addView(TextView(ctx).apply {
+        text = "手势说明：单指移动/轻点/双击/长按拖拽；双指滚动/右键/捏合缩放；三指滑动按上表发送组合键（触发时震动）"
+        textSize = 12f
+        setPadding(0, dpF(ctx, 6), 0, 0)
+    })
+
+    // ---- 已配对设备 ----
+    box.addView(legacyLabel(ctx, "已配对设备"))
+    val devices = settings.devices()
+    if (devices.isEmpty()) {
+        box.addView(TextView(ctx).apply {
+            text = "暂无"
+            textSize = 13f
+        })
+    } else {
+        devices.forEach { d ->
+            box.addView(TextView(ctx).apply {
+                text = "· ${d.second}（${if (d.third == "hid") "蓝牙" else "Wi-Fi"}）"
+                textSize = 13f
+            })
+        }
+    }
+
+    // ---- 数据与隐私 ----
+    box.addView(legacyLabel(ctx, "数据与隐私：仅存本机 SQLite，卸载 App 自动彻底清除"))
     box.addView(legacyButton(ctx, "清除所有本地数据") {
         activity.disconnectLan(); activity.stopHid(); settings.resetAll()
         Toast.makeText(ctx, "已清除全部本地数据并恢复默认设置", Toast.LENGTH_SHORT).show()
