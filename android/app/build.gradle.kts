@@ -14,8 +14,8 @@ android {
         // 蓝牙 HID 免安装模式需要 Android 9 (API 28)，代码内按系统版本门控。
         minSdk = 23
         targetSdk = 35
-        versionCode = 12
-        versionName = "1.0.12"
+        versionCode = 13
+        versionName = "1.0.13"
     }
 
     buildTypes {

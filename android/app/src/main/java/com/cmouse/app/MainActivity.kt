@@ -12,38 +12,24 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Keyboard
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.TouchApp
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.dp
 import com.cmouse.app.data.SettingsStore
 import com.cmouse.app.hid.HidDeviceManager
 import com.cmouse.app.hid.HidService
 import com.cmouse.app.input.InputDispatcher
 import com.cmouse.app.transport.LanClient
 import com.cmouse.app.ui.CMouseTheme
-import com.cmouse.app.ui.Accent
 import com.cmouse.app.ui.KeyboardScreen
-import com.cmouse.app.ui.SettingsScreen
+import com.cmouse.app.ui.SettingsSheet
 import com.cmouse.app.ui.TrackpadScreen
 import java.io.File
 import java.text.SimpleDateFormat
@@ -126,6 +112,8 @@ class MainActivity : ComponentActivity() {
         dispatcher = InputDispatcher(settings)
         dispatcher.hidProvider = { hidService?.hid }
         dispatcher.lanProvider = { lanClient }
+        // 手势动作诊断提示：区分"手势未触发"与"动作未生效"
+        dispatcher.onActionSent = { msg -> Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() }
         crashReport = readLastCrash()
         setContent {
             CMouseTheme {
@@ -250,69 +238,45 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    private enum class Tab(val label: String, val icon: ImageVector) {
-        TRACKPAD("触控板", Icons.Outlined.TouchApp),
-        KEYBOARD("键盘", Icons.Outlined.Keyboard),
-        SETTINGS("设置", Icons.Outlined.Settings)
-    }
-
     @androidx.compose.runtime.Composable
     private fun MainScaffold() {
-        var tab by mutableStateOf(Tab.TRACKPAD)
-        Scaffold(
-            bottomBar = {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    tonalElevation = 0.dp
-                ) {
-                    Tab.entries.forEach { t ->
-                        NavigationBarItem(
-                            selected = tab == t,
-                            onClick = { tab = t },
-                            icon = { Icon(t.icon, contentDescription = t.label) },
-                            label = { Text(t.label) },
-                            colors = NavigationBarItemDefaults.colors(
-                                indicatorColor = MaterialTheme.colorScheme.surfaceVariant,
-                                selectedIconColor = Accent,
-                                selectedTextColor = Accent
-                            )
-                        )
-                    }
-                }
-            }
-        ) { padding ->
-            Box(Modifier.fillMaxSize().padding(padding)) {
-                val status = ConnectionStatus(
-                    hidRegistered = hidRegistered,
-                    hostName = hostName,
-                    hidMsg = hidMsg,
-                    lanState = lanState,
-                    lanMsg = lanMsg,
-                    version = statusVersion,
-                    crashReport = crashReport
+        var showKeyboard by mutableStateOf(false)
+        var showSettings by mutableStateOf(false)
+        Box(Modifier.fillMaxSize()) {
+            val status = ConnectionStatus(
+                hidRegistered = hidRegistered,
+                hostName = hostName,
+                hidMsg = hidMsg,
+                lanState = lanState,
+                lanMsg = lanMsg,
+                version = statusVersion,
+                crashReport = crashReport
+            )
+            TrackpadScreen(
+                modifier = Modifier.fillMaxSize(),
+                settings = settings,
+                dispatcher = dispatcher,
+                activity = this@MainActivity,
+                status = status,
+                onOpenKeyboard = { showKeyboard = true },
+                onOpenSettings = { showSettings = true },
+                onDismissCrash = { crashReport = null }
+            )
+            if (showKeyboard) {
+                KeyboardScreen(
+                    modifier = Modifier.fillMaxSize(),
+                    dispatcher = dispatcher,
+                    lanMode = settings.getString(SettingsStore.Keys.MODE, "hid") == "lan",
+                    onDismiss = { showKeyboard = false }
                 )
-                when (tab) {
-                    Tab.TRACKPAD -> TrackpadScreen(
-                        modifier = Modifier.fillMaxSize(),
-                        settings = settings,
-                        dispatcher = dispatcher,
-                        activity = this@MainActivity,
-                        status = status,
-                        onOpenKeyboard = { tab = Tab.KEYBOARD },
-                        onDismissCrash = { crashReport = null }
-                    )
-                    Tab.KEYBOARD -> KeyboardScreen(
-                        modifier = Modifier.fillMaxSize(),
-                        dispatcher = dispatcher,
-                        lanMode = settings.getString(SettingsStore.Keys.MODE, "hid") == "lan"
-                    )
-                    Tab.SETTINGS -> SettingsScreen(
-                        modifier = Modifier.fillMaxSize(),
-                        settings = settings,
-                        activity = this@MainActivity,
-                        status = status
-                    )
-                }
+            }
+            if (showSettings) {
+                SettingsSheet(
+                    status = status,
+                    settings = settings,
+                    activity = this@MainActivity,
+                    onDismiss = { showSettings = false }
+                )
             }
         }
     }

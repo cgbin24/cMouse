@@ -300,6 +300,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
             if (dx < 0) SwipeDir.LEFT else SwipeDir.RIGHT
         }
         sink.swipe(3, dir)
+        sink.haptic() // 触发成功的触觉反馈：区分"手势未识别"与"动作未生效"
     }
 
     private fun stopMomentum() {

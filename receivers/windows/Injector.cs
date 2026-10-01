@@ -80,11 +80,12 @@ internal static class Injector
         }
     }
 
-    /// dy>0 表示内容向下滚（手机端语义），Windows 滚轮正值=向上滚，取负。
+    /// 手机端协议：+dy=内容向下(视觉)，+dx=内容向右(视觉)。
+    /// Windows 符号：滚轮正值=内容向下(视觉)；HWHEEL 正值=视图向右(内容向左)→取负。
     public static void Scroll(int dx, int dy)
     {
-        if (dy != 0) Mouse(MOUSEEVENTF_WHEEL, 0, 0, -dy * WHEEL_DELTA);
-        if (dx != 0) Mouse(MOUSEEVENTF_HWHEEL, 0, 0, dx * WHEEL_DELTA);
+        if (dy != 0) Mouse(MOUSEEVENTF_WHEEL, 0, 0, dy * WHEEL_DELTA);
+        if (dx != 0) Mouse(MOUSEEVENTF_HWHEEL, 0, 0, -dx * WHEEL_DELTA);
     }
 
     /// d>0 放大：按住 Ctrl + 滚轮。

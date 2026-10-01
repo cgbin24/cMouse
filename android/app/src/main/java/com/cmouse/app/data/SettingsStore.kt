@@ -20,6 +20,7 @@ class SettingsStore(context: Context) :
             const val SENSITIVITY = "sensitivity"      // 0.5 ~ 3.0
             const val SCROLL_SPEED = "scroll_speed"    // 0.3 ~ 3.0
             const val PINCH_ZOOM = "pinch_zoom"        // "1"/"0"
+            const val NATURAL_SCROLL = "natural_scroll" // "1"/"0"，默认开（内容跟随手指）
             const val LAN_HOST = "lan_host"
             const val LAN_PORT = "lan_port"
             const val LAN_CODE = "lan_code"
@@ -63,6 +64,7 @@ class SettingsStore(context: Context) :
         setDefault(db, Keys.SENSITIVITY, "1.0")
         setDefault(db, Keys.SCROLL_SPEED, "1.0")
         setDefault(db, Keys.PINCH_ZOOM, "1")
+        setDefault(db, Keys.NATURAL_SCROLL, "1")
         setDefault(db, Keys.LAN_PORT, "8433")
         setDefault(db, Keys.LAN_CODE, "")
         setDefault(db, Keys.THEME, "system")

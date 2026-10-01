@@ -21,15 +21,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Backspace
 import androidx.compose.material.icons.automirrored.outlined.KeyboardReturn
-import androidx.compose.material.icons.outlined.ExpandLess
-import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Keyboard
-import androidx.compose.material.icons.outlined.TouchApp
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -45,7 +41,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.cmouse.app.ConnectionStatus
@@ -54,6 +49,10 @@ import com.cmouse.app.data.SettingsStore
 import com.cmouse.app.input.InputDispatcher
 import com.cmouse.app.transport.LanClient
 
+/**
+ * 全屏触控板（参考设计稿）：整屏都是触控面，
+ * 顶部状态胶囊 + 底部左/右键 + 左下键盘 / 右下设置两个悬浮圆钮。
+ */
 @Composable
 fun TrackpadScreen(
     modifier: Modifier = Modifier,
@@ -62,6 +61,7 @@ fun TrackpadScreen(
     activity: MainActivity,
     status: ConnectionStatus,
     onOpenKeyboard: () -> Unit,
+    onOpenSettings: () -> Unit,
     onDismissCrash: () -> Unit = {}
 ) {
     // 上次异常退出的崩溃报告（黑匣子）
@@ -73,158 +73,145 @@ fun TrackpadScreen(
                 Column(
                     Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())
                 ) {
-                    Text(
-                        status.crashReport ?: "",
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    Text(status.crashReport ?: "", style = MaterialTheme.typography.bodySmall)
                 }
             },
-            confirmButton = {
-                TextButton(onClick = onDismissCrash) { Text("知道了") }
-            }
+            confirmButton = { TextButton(onClick = onDismissCrash) { Text("知道了") } }
         )
     }
 
-    val lanMode = settings.getString(SettingsStore.Keys.MODE, "hid") == "lan"
+    Box(modifier) {
+        // 整屏触控面
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { ctx -> TrackpadView(ctx, settings, dispatcher) }
+        )
+
+        // 顶部状态胶囊
+        ConnectionPill(
+            status = status,
+            lanMode = settings.getString(SettingsStore.Keys.MODE, "hid") == "lan",
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 14.dp)
+        )
+
+        // 底部中央：左键 / 右键
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 26.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            ClickPill("左键") { dispatcher.click(InputDispatcher.BUTTON_LEFT, false) }
+            ClickPill("右键") { dispatcher.click(InputDispatcher.BUTTON_RIGHT, false) }
+        }
+
+        // 左下：键盘
+        RoundFab(
+            icon = Icons.Outlined.Keyboard,
+            contentDescription = "键盘",
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 20.dp, bottom = 20.dp),
+            onClick = onOpenKeyboard
+        )
+
+        // 右下：设置
+        RoundFab(
+            icon = Icons.Outlined.Settings,
+            contentDescription = "设置",
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 20.dp, bottom = 20.dp),
+            onClick = onOpenSettings
+        )
+    }
+}
+
+@Composable
+private fun ConnectionPill(status: ConnectionStatus, lanMode: Boolean, modifier: Modifier = Modifier) {
     val connected = if (lanMode) status.lanState == LanClient.State.READY
     else (status.hidRegistered && status.hostName != null)
-    var showConnection by remember { mutableStateOf(false) }
-    var showControls by remember { mutableStateOf(false) }
-
-    Column(
-        modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    val text = when {
+        lanMode && status.lanState == LanClient.State.READY ->
+            "Wi-Fi · ${status.hostName ?: "接收端"}"
+        lanMode && status.lanMsg.isNotEmpty() -> status.lanMsg
+        lanMode -> "Wi-Fi · 未连接"
+        status.hidMsg.isNotEmpty() -> status.hidMsg
+        !status.hidRegistered -> "蓝牙 · 未注册"
+        else -> "蓝牙 · ${status.hostName ?: "已配对"}"
+    }
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+        tonalElevation = 2.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("触控板", style = MaterialTheme.typography.headlineMedium)
-                Text(
-                    if (connected) "已连接 · ${status.hostName ?: "电脑"}" else "未连接",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (connected) Accent else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(onClick = { showConnection = !showConnection }) {
-                Icon(
-                    if (showConnection) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                    contentDescription = if (showConnection) "收起连接" else "展开连接"
-                )
-            }
-        }
-
-        if (showConnection) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        Modifier.size(10.dp).clip(CircleShape).background(
-                            if (connected) Accent else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        when {
-                            lanMode && status.lanState == LanClient.State.READY ->
-                                "Wi-Fi · ${status.hostName ?: "接收端"}"
-                            lanMode && status.lanMsg.isNotEmpty() -> status.lanMsg
-                            lanMode -> "Wi-Fi · 未连接"
-                            status.hidMsg.isNotEmpty() -> status.hidMsg
-                            !status.hidRegistered -> "蓝牙 · 未注册"
-                            else -> "蓝牙 · 已配对 ${status.hostName ?: "电脑"}"
-                        },
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    TextButton(onClick = {
-                        if (lanMode) activity.disconnectLan() else activity.startHid()
-                    }) { Text(if (connected) "断开" else "连接") }
-                }
-            }
-        }
-
-        Surface(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp
+        Row(
+            Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { ctx -> TrackpadView(ctx, settings, dispatcher) }
+            Box(
+                Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(if (connected) Accent else MaterialTheme.colorScheme.onSurfaceVariant)
             )
-        }
-
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant
-        ) {
-            Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("控制面板", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.weight(1f))
-                    IconButton(onClick = { showControls = !showControls }) {
-                        Icon(
-                            if (showControls) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                            contentDescription = if (showControls) "收起控制面板" else "展开控制面板"
-                        )
-                    }
-                }
-                if (showControls) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = onOpenKeyboard,
-                            modifier = Modifier.weight(1f),
-                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Accent)
-                        ) {
-                            Icon(Icons.Outlined.Keyboard, contentDescription = null)
-                            Spacer(Modifier.width(6.dp))
-                            Text("键盘")
-                        }
-                        Button(
-                            onClick = { dispatcher.click(InputDispatcher.BUTTON_LEFT, false) },
-                            modifier = Modifier.weight(1f),
-                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.surface,
-                                contentColor = MaterialTheme.colorScheme.onSurface
-                            )
-                        ) {
-                            Icon(Icons.Outlined.TouchApp, contentDescription = null)
-                            Spacer(Modifier.width(6.dp))
-                            Text("左键")
-                        }
-                        Button(
-                            onClick = { dispatcher.click(InputDispatcher.BUTTON_RIGHT, false) },
-                            modifier = Modifier.weight(1f),
-                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.surface,
-                                contentColor = MaterialTheme.colorScheme.onSurface
-                            )
-                        ) { Text("右键") }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "单指移动与轻点 · 双指滚动、右键与捏合 · 三指切换空间或窗口",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            Spacer(Modifier.width(8.dp))
+            Text(text, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
 
 @Composable
+private fun ClickPill(label: String, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+        tonalElevation = 3.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Text(
+            label,
+            Modifier.padding(horizontal = 26.dp, vertical = 11.dp),
+            style = MaterialTheme.typography.labelLarge
+        )
+    }
+}
+
+@Composable
+private fun RoundFab(
+    icon: ImageVector,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.size(52.dp),
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+        tonalElevation = 3.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = contentDescription, tint = MaterialTheme.colorScheme.onSurface)
+        }
+    }
+}
+
+/**
+ * 键盘浮层：从触控板页呼出，顶部下箭头收起。
+ */
+@Composable
 fun KeyboardScreen(
     modifier: Modifier = Modifier,
     dispatcher: InputDispatcher,
-    lanMode: Boolean
+    lanMode: Boolean,
+    onDismiss: () -> Unit = {}
 ) {
     var sticky by remember { mutableStateOf(setOf<String>()) }
     var textBuf by remember { mutableStateOf("") }
@@ -249,25 +236,41 @@ fun KeyboardScreen(
     }
 
     Column(
-        modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text("键盘", style = MaterialTheme.typography.headlineMedium)
-        Text(
-            "输入仅发送到当前已配对的电脑",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        if (lanMode) {
+        // 顶部：收起按钮（参考设计稿的双下箭头）
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
             Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant
+                onClick = onDismiss,
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
                 Row(
-                    Modifier.fillMaxWidth().padding(10.dp),
+                    Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Icon(
+                        Icons.Outlined.KeyboardArrowDown,
+                        contentDescription = "收起键盘",
+                        tint = Accent
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text("收起键盘", style = MaterialTheme.typography.labelLarge, color = Accent)
+                }
+            }
+        }
+
+        if (lanMode) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = textBuf,
                     onValueChange = { textBuf = it },
@@ -282,7 +285,6 @@ fun KeyboardScreen(
                         textBuf = ""
                     }
                 }) { Text("发送") }
-                }
             }
         }
 
@@ -323,6 +325,8 @@ fun KeyboardScreen(
             KeyCap("→", modifier = Modifier.weight(1f)) { pressCombo("right") }
             Spacer(Modifier.weight(1f))
         }
+
+        Spacer(Modifier.height(8.dp))
     }
 }
 

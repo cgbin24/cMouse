@@ -13,11 +13,17 @@ class InputDispatcher(private val settings: SettingsStore) {
     var hidProvider: (() -> HidFacade?)? = null
     var lanProvider: (() -> LanClient?)? = null
 
+    /** 手势动作已发送的界面提示（诊断用）。 */
+    var onActionSent: ((String) -> Unit)? = null
+
     private val lanMode: Boolean get() = settings.getString(SettingsStore.Keys.MODE, "hid") == "lan"
 
     private val sensitivity: Float get() = settings.getFloat(SettingsStore.Keys.SENSITIVITY, 1f)
     private val scrollSpeed: Float get() = settings.getFloat(SettingsStore.Keys.SCROLL_SPEED, 1f)
     private val pinchZoomOn: Boolean get() = settings.getBool(SettingsStore.Keys.PINCH_ZOOM, true)
+
+    /** 自然滚动（默认开，与 macOS 触控板一致）：内容跟随手指。 */
+    private val naturalScroll: Boolean get() = settings.getBool(SettingsStore.Keys.NATURAL_SCROLL, true)
 
     // 滚轮累计器：把连续位移量化成整格滚轮
     private var wheelAccY = 0f
@@ -63,8 +69,9 @@ class InputDispatcher(private val settings: SettingsStore) {
     }
 
     /**
-     * 滚动。参数为触控空间方向（手指向下 dy>0 → 内容向下滚）。
-     * HID 滚轮正值=向上滚，故取负；LAN 协议约定 +dy=内容向下滚。
+     * 滚动。参数为触控方向（手指向下 dy>0、向右 dx>0）。
+     * 符号约定：滚轮正值=内容向下(视觉)；AC Pan 正值=视图向右(内容向左)。
+     * 自然滚动开：内容跟随手指 → 手指向下(+dy)=滚轮正值；手指向右(+dx)=内容向右=Pan 取负。
      */
     fun scroll(dx: Float, dy: Float) {
         wheelAccY += dy * scrollSpeed
@@ -74,8 +81,14 @@ class InputDispatcher(private val settings: SettingsStore) {
         if (ticksY == 0 && ticksX == 0) return
         wheelAccY -= ticksY
         wheelAccX -= ticksX
-        if (lanMode) lanProvider?.invoke()?.scroll(ticksX.toFloat(), ticksY.toFloat())
-        else hidProvider?.invoke()?.sendMouse(0, 0, 0, (-ticksY).coerceIn(-127, 127), ticksX.coerceIn(-127, 127))
+        val wheel = if (naturalScroll) ticksY else -ticksY
+        val pan = if (naturalScroll) -ticksX else ticksX
+        if (lanMode) {
+            // 协议语义：+dy=内容向下(视觉)，+dx=内容向右(视觉)，接收端负责转换为本机符号
+            lanProvider?.invoke()?.scroll(ticksX.toFloat(), ticksY.toFloat())
+        } else {
+            hidProvider?.invoke()?.sendMouse(0, 0, 0, wheel.coerceIn(-127, 127), pan.coerceIn(-127, 127))
+        }
     }
 
     /** 双指捏合 -> Ctrl + 滚轮（绝大多数应用中等效缩放）。zoom>0 表示放大。 */
@@ -108,13 +121,17 @@ class InputDispatcher(private val settings: SettingsStore) {
             SwipeDir.LEFT -> "three_left"; SwipeDir.RIGHT -> "three_right"
         }.let { if (fingers == 3) it else "${fingers}_${dir.name.lowercase()}" }
         when (val act = settings.gestureAction(gesture)) {
-            null -> defaultSwipeAction(fingers, dir)
+            null -> {
+                defaultSwipeAction(fingers, dir)
+                onActionSent?.invoke("三指滑动 → ${if (dir == SwipeDir.LEFT) "ctrl+left" else "ctrl+right"}")
+            }
             else -> when (act.first) {
                 "combo" -> {
                     if (lanMode) lanProvider?.invoke()?.combo(act.second)
                     else hidProvider?.invoke()?.sendCombo(act.second)
+                    onActionSent?.invoke("三指滑动 → ${act.second}")
                 }
-                "none" -> {}
+                "none" -> onActionSent?.invoke("三指滑动 → 无动作（可在设置中修改）")
             }
         }
     }

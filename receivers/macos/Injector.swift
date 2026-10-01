@@ -64,10 +64,11 @@ enum Injector {
 
     // MARK: - 滚动（含捏合缩放）
 
-    /// dx/dy：手机端语义（+dy 内容向下滚）。macOS wheel1 正值=向上滚。
+    /// 手机端协议：+dy=内容向下(视觉)，+dx=内容向右(视觉)。
+    /// CG 滚轮符号：wheel1 正值=内容向下(视觉)；wheel2(AC Pan) 正值=视图向右(内容向左)→取负。
     static func scroll(dx: Int, dy: Int) {
         guard let e = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 2,
-                              wheel1: -Int32(dy), wheel2: Int32(dx), wheel3: 0) else { return }
+                              wheel1: Int32(dy), wheel2: -Int32(dx), wheel3: 0) else { return }
         e.post(tap: .cghidEventTap)
     }
 
