@@ -8,7 +8,6 @@ import android.graphics.Color
 import android.view.GestureDetector
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
-import android.graphics.RectF
 import android.view.View
 import com.cmouse.app.data.SettingsStore
 import com.cmouse.app.input.GestureEngine
@@ -132,15 +131,17 @@ class TrackpadView(
         canvas.drawPath(path, directionPaint)
     }
 
-    /** 悬浮按钮/胶囊区域（根坐标 px）：这些区域的开屏触摸让给上层 Compose 按钮。 */
-    var ignoreAreas: List<RectF> = emptyList()
+    private var lastTouchDiag = 0L
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // Compose 1.7 interop 在 Initial pass 先派发给 View，View 一旦消费，
-        // 上层悬浮按钮的点击就收不到事件——按钮区域必须主动让出。
-        if (event.actionMasked == MotionEvent.ACTION_DOWN &&
-            ignoreAreas.any { it.contains(event.x, event.y) }
-        ) return false
+        // 诊断：节流上报"触控板确实收到了触摸"，用于排查整机触摸失效问题
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            val now = System.currentTimeMillis()
+            if (now - lastTouchDiag > 1500) {
+                lastTouchDiag = now
+                dispatcher.onActionSent?.invoke("✓ 触控板已收到触摸")
+            }
+        }
         detector.onTouchEvent(event)
         return engine.onTouchEvent(event)
     }

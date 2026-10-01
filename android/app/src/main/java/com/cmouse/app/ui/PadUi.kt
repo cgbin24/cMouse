@@ -19,7 +19,7 @@ import com.cmouse.app.transport.LanClient
  * 控件必须是 TrackpadView 的兄弟原生 View（View 体系子控件优先分发触摸），
  * 不能用 Compose 悬浮层——Compose 1.7 interop 会把触摸先派发给触控板 View。
  */
-class PadUiHolder(val root: FrameLayout, val statusPill: TextView)
+class PadUiHolder(val root: FrameLayout, val statusPill: TextView, val versionName: String)
 
 fun buildPadUi(
     context: Context,
@@ -91,7 +91,7 @@ fun buildPadUi(
     )
 
     // 左下 / 右下：键盘 / 设置 圆钮
-    fun fab(iconRes: Int, onClick: () -> Unit): FrameLayout = FrameLayout(context).apply {
+    fun fab(iconRes: Int, diagMsg: String, onClick: () -> Unit): FrameLayout = FrameLayout(context).apply {
         background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
             setColor(0xE6FFFFFF.toInt())
@@ -101,24 +101,32 @@ fun buildPadUi(
             ImageView(context).apply { setImageResource(iconRes) },
             FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER)
         )
-        setOnClickListener { onClick() }
+        setOnClickListener {
+            dispatcher.onActionSent?.invoke(diagMsg)
+            onClick()
+        }
     }
     root.addView(
-        fab(R.drawable.ic_keyboard, onOpenKeyboard),
+        fab(R.drawable.ic_keyboard, "✓ 已点击键盘按钮", onOpenKeyboard),
         FrameLayout.LayoutParams(dp(52), dp(52), Gravity.BOTTOM or Gravity.START)
             .apply { leftMargin = dp(20); bottomMargin = dp(20) }
     )
     root.addView(
-        fab(R.drawable.ic_settings, onOpenSettings),
+        fab(R.drawable.ic_settings, "✓ 已点击设置按钮", onOpenSettings),
         FrameLayout.LayoutParams(dp(52), dp(52), Gravity.BOTTOM or Gravity.END)
             .apply { rightMargin = dp(20); bottomMargin = dp(20) }
     )
 
-    return PadUiHolder(root, statusPill)
+    val versionName = try {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
+    } catch (_: Exception) {
+        ""
+    }
+    return PadUiHolder(root, statusPill, versionName)
 }
 
 /** 顶部胶囊的状态文案（在 AndroidView 的 update 中随 Compose 状态刷新）。 */
-fun padStatusText(status: ConnectionStatus, settings: SettingsStore): String {
+fun padStatusText(status: ConnectionStatus, settings: SettingsStore, versionName: String = ""): String {
     val lanMode = settings.getString(SettingsStore.Keys.MODE, "hid") == "lan"
     val connected = if (lanMode) status.lanState == LanClient.State.READY
     else (status.hidRegistered && status.hostName != null)
@@ -129,5 +137,5 @@ fun padStatusText(status: ConnectionStatus, settings: SettingsStore): String {
         status.hidMsg.isNotEmpty() -> status.hidMsg
         !status.hidRegistered -> "蓝牙 · 未注册"
         else -> "蓝牙 · ${status.hostName ?: "已配对"}"
-    }
+    } + (if (versionName.isNotEmpty()) " · v$versionName" else "")
 }

@@ -46,6 +46,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import android.widget.TextView
+
+/** AndroidView 的 update 需要访问 holder：factory 与 update 分离时用引用桥接。 */
+private var padUiHolderRef: PadUiHolder? = null
 import androidx.compose.ui.viewinterop.AndroidView
 import android.graphics.RectF
 import com.cmouse.app.ConnectionStatus
@@ -90,10 +93,17 @@ fun TrackpadScreen(
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
-            buildPadUi(ctx, settings, dispatcher, onOpenKeyboard, onOpenSettings).root
+            buildPadUi(ctx, settings, dispatcher, onOpenKeyboard, onOpenSettings).also { padUi ->
+                padUiHolderRef = padUi
+            }.root
         },
         update = { root ->
-            (root.getChildAt(1) as? TextView)?.text = padStatusText(status, settings)
+            padUiHolderRef?.let { padUi ->
+                padUi.statusPill.text = padStatusText(status, settings, padUi.versionName)
+            }
+        }
+        update = { padUi ->
+            padUi.statusPill.text = padStatusText(status, settings, padUi.versionName)
         }
     )
 }
