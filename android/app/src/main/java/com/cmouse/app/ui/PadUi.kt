@@ -58,8 +58,8 @@ fun buildPadUi(
         statusPill,
         FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-            Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, dp(14), 0, 0
-        )
+            Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        ).apply { topMargin = dp(14) }
     )
 
     // 底部中央：左键 / 右键
@@ -86,8 +86,8 @@ fun buildPadUi(
         btnRow,
         FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL, 0, 0, 0, dp(26)
-        )
+            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        ).apply { bottomMargin = dp(26) }
     )
 
     // 左下 / 右下：键盘 / 设置 圆钮
@@ -105,11 +105,13 @@ fun buildPadUi(
     }
     root.addView(
         fab(R.drawable.ic_keyboard, onOpenKeyboard),
-        FrameLayout.LayoutParams(dp(52), dp(52), Gravity.BOTTOM or Gravity.START, dp(20), 0, 0, dp(20))
+        FrameLayout.LayoutParams(dp(52), dp(52), Gravity.BOTTOM or Gravity.START)
+            .apply { leftMargin = dp(20); bottomMargin = dp(20) }
     )
     root.addView(
         fab(R.drawable.ic_settings, onOpenSettings),
-        FrameLayout.LayoutParams(dp(52), dp(52), Gravity.BOTTOM or Gravity.END, dp(20), 0, 0, dp(20))
+        FrameLayout.LayoutParams(dp(52), dp(52), Gravity.BOTTOM or Gravity.END)
+            .apply { rightMargin = dp(20); bottomMargin = dp(20) }
     )
 
     return PadUiHolder(root, statusPill)

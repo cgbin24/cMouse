@@ -93,8 +93,7 @@ fun TrackpadScreen(
             buildPadUi(ctx, settings, dispatcher, onOpenKeyboard, onOpenSettings).root
         },
         update = { root ->
-            val pill = root.getChildAt(1) as? TextView ?: return@update
-            pill.text = padStatusText(status, settings)
+            (root.getChildAt(1) as? TextView)?.text = padStatusText(status, settings)
         }
     )
 }
