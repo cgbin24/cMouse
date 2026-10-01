@@ -30,7 +30,6 @@ import com.cmouse.app.transport.LanClient
 import android.app.AlertDialog
 import com.cmouse.app.ui.CMouseTheme
 import com.cmouse.app.ui.PadUiHolder
-import com.cmouse.app.ui.padStatusText
 import com.cmouse.app.ui.setupLegacyUi
 import com.cmouse.app.ui.KeyboardScreen
 import com.cmouse.app.ui.SettingsSheet
@@ -71,7 +70,7 @@ class MainActivity : ComponentActivity() {
 
     /** 传统 View 界面（Android 8 以下）的状态胶囊刷新。 */
     internal fun refreshLegacyStatus() {
-        padUiHolder?.let { it.statusPill.text = padStatusText(currentStatus(), settings, it.versionName) }
+        padUiHolder?.updateStatusPill(currentStatus())
     }
 
     private val statusRelay = object : HidDeviceManager.Listener {

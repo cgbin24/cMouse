@@ -33,9 +33,15 @@ class TrackpadView(
         override fun click(button: Int, double: Boolean) = dispatcher.click(button, double)
         override fun buttonDown(button: Int) = dispatcher.button(button, true)
         override fun buttonUp(button: Int) = dispatcher.button(button, false)
-        override fun scroll(dx: Float, dy: Float) = dispatcher.scroll(dx, dy)
+        override fun scroll(dx: Float, dy: Float) {
+            dispatcher.scroll(dx, dy)
+            emitHint("双指滚动")
+        }
         override fun momentumTick(dx: Float, dy: Float) = dispatcher.scroll(dx, dy)
-        override fun zoom(zoomPct: Float) = dispatcher.zoom(zoomPct)
+        override fun zoom(zoomPct: Float) {
+            dispatcher.zoom(zoomPct)
+            emitHint("捏合缩放")
+        }
         override fun swipe(fingers: Int, dir: SwipeDir) = dispatcher.swipe(fingers, dir)
         override fun haptic() {
             performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
@@ -107,6 +113,10 @@ class TrackpadView(
             canvas.drawCircle(cx, cy, dp(30f), dragPaint)
             canvas.drawText("拖动中", cx, cy + dp(5f), dragTextPaint)
         }
+        if (rippleAlpha > 0f) {
+            ripplePaint.alpha = (140 * rippleAlpha).toInt()
+            canvas.drawCircle(rippleX, rippleY, dp(24f), ripplePaint)
+        }
     }
 
     private fun drawDirection(canvas: Canvas, dir: SwipeDir, x: Float, y: Float) {
@@ -133,6 +143,28 @@ class TrackpadView(
 
     private var lastTouchDiag = 0L
 
+    /** 手势提示回调（滚动/缩放开始时触发，由 PadUi 显示文字提示）。 */
+    var onGestureHint: ((String) -> Unit)? = null
+    private var lastHint = ""
+    private var lastHintTime = 0L
+    private fun emitHint(text: String) {
+        val now = System.currentTimeMillis()
+        if (text == lastHint && now - lastHintTime < 1200) return
+        lastHint = text; lastHintTime = now
+        onGestureHint?.invoke(text)
+    }
+
+    // 触摸涟漪：触点显示淡蓝圆点，抬手淡出
+    private val ripplePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x28007AFF }
+    private var rippleX = 0f; private var rippleY = 0f
+    private var rippleAlpha = 1f
+    private val rippleFade = object : Runnable {
+        override fun run() {
+            rippleAlpha -= 0.15f
+            if (rippleAlpha > 0f) { invalidate(); postDelayed(this, 16) } else invalidate()
+        }
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         // 诊断：节流上报"触控板确实收到了触摸"，用于排查整机触摸失效问题
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
@@ -141,6 +173,15 @@ class TrackpadView(
                 lastTouchDiag = now
                 dispatcher.onActionSent?.invoke("✓ 触控板已收到触摸")
             }
+            removeCallbacks(rippleFade)
+            rippleX = event.x; rippleY = event.y; rippleAlpha = 1f
+            invalidate()
+        }
+        when (event.actionMasked) {
+            MotionEvent.ACTION_MOVE -> {
+                rippleX = event.x; rippleY = event.y; invalidate()
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> postDelayed(rippleFade, 16)
         }
         detector.onTouchEvent(event)
         return engine.onTouchEvent(event)

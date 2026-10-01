@@ -94,7 +94,7 @@ fun TrackpadScreen(
             buildPadUi(ctx, settings, dispatcher, onOpenKeyboard, onOpenSettings).also { padUi = it }.root
         },
         update = { root ->
-            padUi?.let { it.statusPill.text = padStatusText(status, settings, it.versionName) }
+            padUi?.updateStatusPill(status)
         }
     )
 }
