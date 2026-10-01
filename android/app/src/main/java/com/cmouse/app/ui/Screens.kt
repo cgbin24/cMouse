@@ -39,10 +39,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.viewinterop.AndroidView
+import android.graphics.RectF
 import com.cmouse.app.ConnectionStatus
 import com.cmouse.app.MainActivity
 import com.cmouse.app.data.SettingsStore
@@ -80,11 +84,22 @@ fun TrackpadScreen(
         )
     }
 
+    // 悬浮控件区域（根坐标）：传给触控板，让其对这些区域让出触摸
+    val controlAreas = remember { mutableStateOf(mapOf<String, Rect>()) }
+    fun areaModifier(key: String): Modifier = Modifier.onGloballyPositioned { coords ->
+        controlAreas.value = controlAreas.value + (key to coords.boundsInRoot())
+    }
+
     Box(modifier) {
         // 整屏触控面
         AndroidView(
             modifier = Modifier.fillMaxSize(),
-            factory = { ctx -> TrackpadView(ctx, settings, dispatcher) }
+            factory = { ctx -> TrackpadView(ctx, settings, dispatcher) },
+            update = { view ->
+                view.ignoreAreas = controlAreas.value.values.map {
+                    RectF(it.left, it.top, it.right, it.bottom)
+                }
+            }
         )
 
         // 顶部状态胶囊
@@ -94,13 +109,15 @@ fun TrackpadScreen(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 14.dp)
+                .then(areaModifier("status"))
         )
 
         // 底部中央：左键 / 右键
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 26.dp),
+                .padding(bottom = 26.dp)
+                .then(areaModifier("buttons")),
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             ClickPill("左键") { dispatcher.click(InputDispatcher.BUTTON_LEFT, false) }
@@ -113,7 +130,8 @@ fun TrackpadScreen(
             contentDescription = "键盘",
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 20.dp, bottom = 20.dp),
+                .padding(start = 20.dp, bottom = 20.dp)
+                .then(areaModifier("keyboard")),
             onClick = onOpenKeyboard
         )
 
@@ -123,7 +141,8 @@ fun TrackpadScreen(
             contentDescription = "设置",
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = 20.dp),
+                .padding(end = 20.dp, bottom = 20.dp)
+                .then(areaModifier("settings")),
             onClick = onOpenSettings
         )
     }
