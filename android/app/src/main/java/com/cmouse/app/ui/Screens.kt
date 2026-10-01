@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import android.widget.TextView
 import androidx.compose.ui.viewinterop.AndroidView
 import android.graphics.RectF
 import com.cmouse.app.ConnectionStatus
@@ -84,147 +85,20 @@ fun TrackpadScreen(
         )
     }
 
-    // 悬浮控件区域（根坐标）：传给触控板，让其对这些区域让出触摸
-    val controlAreas = remember { mutableStateOf(mapOf<String, Rect>()) }
-    fun areaModifier(key: String): Modifier = Modifier.onGloballyPositioned { coords ->
-        controlAreas.value = controlAreas.value + (key to coords.boundsInRoot())
-    }
-
-    Box(modifier) {
-        // 整屏触控面
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { ctx -> TrackpadView(ctx, settings, dispatcher) },
-            update = { view ->
-                view.ignoreAreas = controlAreas.value.values.map {
-                    RectF(it.left, it.top, it.right, it.bottom)
-                }
-            }
-        )
-
-        // 顶部状态胶囊
-        ConnectionPill(
-            status = status,
-            lanMode = settings.getString(SettingsStore.Keys.MODE, "hid") == "lan",
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 14.dp)
-                .then(areaModifier("status"))
-        )
-
-        // 底部中央：左键 / 右键
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 26.dp)
-                .then(areaModifier("buttons")),
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            ClickPill("左键") { dispatcher.click(InputDispatcher.BUTTON_LEFT, false) }
-            ClickPill("右键") { dispatcher.click(InputDispatcher.BUTTON_RIGHT, false) }
-        }
-
-        // 左下：键盘
-        RoundFab(
-            icon = Icons.Outlined.Keyboard,
-            contentDescription = "键盘",
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 20.dp, bottom = 20.dp)
-                .then(areaModifier("keyboard")),
-            onClick = onOpenKeyboard
-        )
-
-        // 右下：设置
-        RoundFab(
-            icon = Icons.Outlined.Settings,
-            contentDescription = "设置",
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = 20.dp)
-                .then(areaModifier("settings")),
-            onClick = onOpenSettings
-        )
-    }
-}
-
-@Composable
-private fun ConnectionPill(status: ConnectionStatus, lanMode: Boolean, modifier: Modifier = Modifier) {
-    val connected = if (lanMode) status.lanState == LanClient.State.READY
-    else (status.hidRegistered && status.hostName != null)
-    val text = when {
-        lanMode && status.lanState == LanClient.State.READY ->
-            "Wi-Fi · ${status.hostName ?: "接收端"}"
-        lanMode && status.lanMsg.isNotEmpty() -> status.lanMsg
-        lanMode -> "Wi-Fi · 未连接"
-        status.hidMsg.isNotEmpty() -> status.hidMsg
-        !status.hidRegistered -> "蓝牙 · 未注册"
-        else -> "蓝牙 · ${status.hostName ?: "已配对"}"
-    }
-    Surface(
+    // 触控板与悬浮控件全部在同一个原生容器内（View 体系保证按钮优先接收触摸），
+    // Compose 侧只负责随状态刷新顶部胶囊文案。
+    AndroidView(
         modifier = modifier,
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-        tonalElevation = 2.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-    ) {
-        Row(
-            Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                Modifier
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(if (connected) Accent else MaterialTheme.colorScheme.onSurfaceVariant)
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(text, style = MaterialTheme.typography.bodySmall)
+        factory = { ctx ->
+            buildPadUi(ctx, settings, dispatcher, onOpenKeyboard, onOpenSettings).root
+        },
+        update = { root ->
+            val pill = root.getChildAt(1) as? TextView ?: return@update
+            pill.text = padStatusText(status, settings)
         }
-    }
+    )
 }
 
-@Composable
-private fun ClickPill(label: String, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-        tonalElevation = 3.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-    ) {
-        Text(
-            label,
-            Modifier.padding(horizontal = 26.dp, vertical = 11.dp),
-            style = MaterialTheme.typography.labelLarge
-        )
-    }
-}
-
-@Composable
-private fun RoundFab(
-    icon: ImageVector,
-    contentDescription: String,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier.size(52.dp),
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-        tonalElevation = 3.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = contentDescription, tint = MaterialTheme.colorScheme.onSurface)
-        }
-    }
-}
-
-/**
- * 键盘浮层：从触控板页呼出，顶部下箭头收起。
- */
 @Composable
 fun KeyboardScreen(
     modifier: Modifier = Modifier,
