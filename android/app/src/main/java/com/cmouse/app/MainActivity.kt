@@ -30,6 +30,7 @@ import com.cmouse.app.transport.LanClient
 import android.app.AlertDialog
 import com.cmouse.app.ui.CMouseTheme
 import com.cmouse.app.ui.PadUiHolder
+import com.cmouse.app.ui.padStatusText
 import com.cmouse.app.ui.setupLegacyUi
 import com.cmouse.app.ui.KeyboardScreen
 import com.cmouse.app.ui.SettingsSheet
