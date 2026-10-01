@@ -27,7 +27,10 @@ import com.cmouse.app.hid.HidDeviceManager
 import com.cmouse.app.hid.HidService
 import com.cmouse.app.input.InputDispatcher
 import com.cmouse.app.transport.LanClient
+import android.app.AlertDialog
 import com.cmouse.app.ui.CMouseTheme
+import com.cmouse.app.ui.PadUiHolder
+import com.cmouse.app.ui.setupLegacyUi
 import com.cmouse.app.ui.KeyboardScreen
 import com.cmouse.app.ui.SettingsSheet
 import com.cmouse.app.ui.TrackpadScreen
@@ -53,17 +56,35 @@ class MainActivity : ComponentActivity() {
     private var lanMsg by mutableStateOf("")
     private var statusVersion by mutableStateOf(0) // 触发设置页设备列表刷新
     private var crashReport by mutableStateOf<String?>(null)
+    private var padUiHolder: PadUiHolder? = null
+
+    internal fun currentStatus(): ConnectionStatus = ConnectionStatus(
+        hidRegistered = hidRegistered,
+        hostName = hostName,
+        hidMsg = hidMsg,
+        lanState = lanState,
+        lanMsg = lanMsg,
+        version = statusVersion,
+        crashReport = crashReport
+    )
+
+    /** 传统 View 界面（Android 8 以下）的状态胶囊刷新。 */
+    internal fun refreshLegacyStatus() {
+        padUiHolder?.let { it.statusPill.text = padStatusText(currentStatus(), settings, it.versionName) }
+    }
 
     private val statusRelay = object : HidDeviceManager.Listener {
         override fun onRegistered(registered: Boolean) {
             if (registered) hidMsg = ""
             hidRegistered = registered
             statusVersion++
+            refreshLegacyStatus()
         }
 
         override fun onHostChanged(name: String?, connected: Boolean) {
             hostName = if (connected) name else null
             statusVersion++
+            refreshLegacyStatus()
         }
 
         override fun onError(message: String) {
@@ -115,9 +136,22 @@ class MainActivity : ComponentActivity() {
         // 手势动作诊断提示：区分"手势未触发"与"动作未生效"
         dispatcher.onActionSent = { msg -> Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() }
         crashReport = readLastCrash()
-        setContent {
-            CMouseTheme {
-                MainScaffold()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            // Android 7.x 及以下：完全绕开 Compose——部分老 ROM 的 interop
+            // 触摸分发不可靠（OPPO R9st 实测），主界面/设置/键盘全部走传统 View
+            padUiHolder = setupLegacyUi(this, settings, dispatcher)
+            crashReport?.let {
+                AlertDialog.Builder(this)
+                    .setTitle("上次异常退出报告")
+                    .setMessage(it)
+                    .setPositiveButton("知道了", null)
+                    .show()
+            }
+        } else {
+            setContent {
+                CMouseTheme {
+                    MainScaffold()
+                }
             }
         }
     }
