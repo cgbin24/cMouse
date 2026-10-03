@@ -63,6 +63,7 @@ fun SettingsSheet(
     status: ConnectionStatus,
     settings: SettingsStore,
     activity: MainActivity,
+    dispatcher: InputDispatcher,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -231,6 +232,20 @@ fun SettingsSheet(
                     SwitchRow("双指捏合缩放（Ctrl+滚轮）", pinch) {
                         pinch = it; settings.putBool(SettingsStore.Keys.PINCH_ZOOM, it)
                     }
+                    var flipHint by remember { mutableStateOf(false) }
+                    if (flipHint) {
+                        Text(
+                            "已翻转滚动方向，请再试一次双指滑动",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    TextButton(onClick = {
+                        val v = !settings.getBool(SettingsStore.Keys.NATURAL_SCROLL, true)
+                        settings.putBool(SettingsStore.Keys.NATURAL_SCROLL, v)
+                        natural = v
+                        flipHint = true
+                    }) { Text("滚动方向不对？点此翻转") }
                 }
             } else {
                 // ---- 自定义手势 ----
@@ -239,6 +254,9 @@ fun SettingsSheet(
                     GestureRow("下滑 · 显示桌面", "three_down", settings) { gestureDialog = "three_down" }
                     GestureRow("左滑 · 切换到左侧屏幕", "three_left", settings) { gestureDialog = "three_left" }
                     GestureRow("右滑 · 切换到右侧屏幕", "three_right", settings) { gestureDialog = "three_right" }
+                    TextButton(onClick = { dispatcher.swipe(3, com.cmouse.app.input.SwipeDir.UP) }) {
+                        Text("测试三指动作（发送上滑动作）")
+                    }
                 }
                 SectionCard(title = "手势说明") {
                     Text(

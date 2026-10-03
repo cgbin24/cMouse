@@ -309,6 +309,7 @@ class MainActivity : ComponentActivity() {
                     status = status,
                     settings = settings,
                     activity = this@MainActivity,
+                    dispatcher = dispatcher,
                     onDismiss = { showSettings = false }
                 )
             }

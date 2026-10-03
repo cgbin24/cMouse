@@ -80,7 +80,7 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
             val dxTicks = momentumVx / 1000f * (1f / 60f) / cfg.scrollStepPx
             val dyTicks = momentumVy / 1000f * (1f / 60f) / cfg.scrollStepPx
             if (abs(dxTicks) > 0.02f || abs(dyTicks) > 0.02f) {
-                sink.momentumTick(dxTicks, -dyTicks)
+                sink.momentumTick(dxTicks, dyTicks)
                 momentumVy *= 0.9f
                 momentumVx *= 0.9f
                 handler.postDelayed(this, 16)
@@ -209,7 +209,8 @@ class GestureEngine(private val cfg: Config, private val sink: Sink) {
                     val tx = scrollAccX.toInt(); val ty = scrollAccY.toInt()
                     if (tx != 0 || ty != 0) {
                         scrollAccX -= tx; scrollAccY -= ty
-                        sink.scroll(tx.toFloat(), -ty.toFloat())
+                        // 引擎输出=触控方向（手指向下 ty>0），方向换算由 InputDispatcher 按自然滚动设置统一处理
+                        sink.scroll(tx.toFloat(), ty.toFloat())
                     }
                 }
                 if (abs(movedX) > 0.5f || abs(movedY) > 0.5f) updateDirection(movedX, movedY)

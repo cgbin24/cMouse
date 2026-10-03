@@ -179,6 +179,12 @@ fun showLegacySettingsDialog(
         settings.putBool(SettingsStore.Keys.PINCH_ZOOM, v)
         pinchBtn.text = "捏合缩放：${if (v) "开" else "关"}"
     }
+    val calibBtn = legacyButton(ctx, "滚动方向不对？点此翻转") {
+        val v = !settings.getBool(SettingsStore.Keys.NATURAL_SCROLL, true)
+        settings.putBool(SettingsStore.Keys.NATURAL_SCROLL, v)
+        Toast.makeText(ctx, "滚动方向已翻转，请再试一次双指滑动", Toast.LENGTH_SHORT).show()
+    }
+    box.addView(calibBtn)
     box.addView(legacyRow(ctx, naturalBtn, pinchBtn))
 
     // ---- 三指滑动自定义映射 ----
@@ -210,6 +216,9 @@ fun showLegacySettingsDialog(
     box.addView(gestureButton("three_down", "下滑"))
     box.addView(gestureButton("three_left", "左滑"))
     box.addView(gestureButton("three_right", "右滑"))
+    box.addView(legacyButton(ctx, "测试三指动作（发送上滑动作）") {
+        dispatcher.swipe(3, com.cmouse.app.input.SwipeDir.UP)
+    })
     box.addView(TextView(ctx).apply {
         text = "手势说明：单指移动/轻点/双击/长按拖拽；双指滚动/右键/捏合缩放；三指滑动按上表发送组合键（触发时震动）"
         textSize = 12f
