@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import com.cmouse.app.ConnectionStatus
 import com.cmouse.app.MainActivity
 import com.cmouse.app.data.SettingsStore
+import com.cmouse.app.input.InputDispatcher
 import com.cmouse.app.transport.LanClient
 
 /**
